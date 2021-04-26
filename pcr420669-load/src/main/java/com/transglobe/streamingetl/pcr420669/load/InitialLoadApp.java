@@ -1,6 +1,5 @@
 package com.transglobe.streamingetl.pcr420669.load;
 
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -9,14 +8,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Properties;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,98 +26,135 @@ public class InitialLoadApp {
 	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp.class);
 
 	private static final String CONFIG_FILE_NAME = "config.properties";
-	private static final String TABLE_POLICY_HOLDER = "PMUSER.T_POLICY_HOLDER";
-	private static final String TABLE_INSURED_LIST = "PMUSER.T_INSURED_LIST";
-	private static final String TABLE_CONTRACT_BENE = "PMUSER.T_CONTRACT_BENE";
-	private static final String TABLE_ADDRESS = "PMUSER.T_ADDRESS";
-	private static final String SINK_TABLE_INTERESTED_PARTY_CONTACT = "PMUSER.T_INTERESTED_PARTY_CONTACT";
 
+	static class LoadBean {
+		String fullTableName;
+		Integer roleType;
+		Long startSeq;
+		Long endSeq;
+	}
+	private Config config;
 
+	public InitialLoadApp(String fileName) throws Exception {
+		config = Config.getConfig(CONFIG_FILE_NAME);
+	}
 	public static void main(String[] args) {
-		InitialLoadApp app = new InitialLoadApp();
+		logger.info(">>> start run InitialLoadApp");
+
+		long t0 = 0L;
 		try {
-			DbConfig config = app.getDbConnConfig(CONFIG_FILE_NAME);
 
-			test1(config);
+			InitialLoadApp app = new InitialLoadApp(CONFIG_FILE_NAME);
 
-			//ExecutorService executor = Executors.newFixedThreadPool(10);
-
-
+			//			t0 = System.currentTimeMillis();
+			//			app.test1();
+			//			logger.info(" test1 span={}", (System.currentTimeMillis() - t0));
+			//
+			t0 = System.currentTimeMillis();
+			app.test3();
+			logger.info(" test3 span={}", (System.currentTimeMillis() - t0));
 
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 
 	}
-	public DbConfig getDbConnConfig(String fileName) throws Exception {
-		ClassLoader loader = Thread.currentThread().getContextClassLoader();
 
-		Properties prop = new Properties();
-		try (InputStream input = loader.getResourceAsStream(fileName)) {
-
-			// load a properties file
-			prop.load(input);
-
-			DbConfig dbConfig = new DbConfig();
-			dbConfig.sourceDbDriver = prop.getProperty("source.db.driver");
-			dbConfig.sourceDbUrl = prop.getProperty("source.db.url");
-			dbConfig.sourceDbUsername = prop.getProperty("source.db.username");
-			dbConfig.sourceDbPassword = prop.getProperty("source.db.password");
-
-			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");
-			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
-			dbConfig.sinkDbUsername = prop.getProperty("sink.db.username");
-			dbConfig.sinkDbPassword = prop.getProperty("sink.db.password");
-
-			return dbConfig;
-		} catch (Exception e) {
-			throw e;
-		} 
-	}
-	private static void test2(DbConfig dbConfig) throws Exception {
-
+	private void test2() throws Exception {
+		logger.info(">>> run test2");
 		ExecutorService executor = Executors.newFixedThreadPool(3);
 		try {
 
-		List<String> tables = new ArrayList<String>();
-		tables.add(TABLE_POLICY_HOLDER);
-		tables.add(TABLE_INSURED_LIST);
-		tables.add(TABLE_CONTRACT_BENE);
+			List<String> fulleSourceTableNames = new ArrayList<>();
+			fulleSourceTableNames.add(config.sourceTablePolicyHolder);
+			//			fulleSourceTableNames.add(config.sourceTableInsuredList);
+			//			fulleSourceTableNames.add(config.sourceTableContractBene);
 
-		
-		List<CompletableFuture<List<InterestedPartyContact>>> futures = 
-				tables.stream().map(tableName -> CompletableFuture.supplyAsync(
-						() -> getInterestedPartyContact(dbConfig, tableName), executor))
-				.collect(Collectors.toList());
+			Map<String, Integer> roleTypeMap = new HashMap<>();
+			roleTypeMap.put(config.sourceTablePolicyHolder, 1);
+			roleTypeMap.put(config.sourceTableInsuredList, 2);
+			roleTypeMap.put(config.sourceTableContractBene, 3);
 
-		List<InterestedPartyContact> result = futures.stream().map(CompletableFuture::join)
-				 .flatMap(List::stream).collect(Collectors.toList());
-		
-		// save result to sink db
-		
-		
+			List<CompletableFuture<Map<String, String>>> futures = 
+					fulleSourceTableNames.stream().map(t -> CompletableFuture.supplyAsync(
+							() -> loadInterestedPartyContact(t, roleTypeMap.get(t)), executor))
+					.collect(Collectors.toList());
+
+			List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
+
+			for (Map<String, String> map : result) {
+				String sourceTable = map.get("SOURCE_TABLE");
+				String sinkTable = map.get("SINK_TABLE");
+				String returnCode = map.get("RETURN_CODE");
+				String recordCount = "";
+				String errormsg = "";
+				String stackTrace = "";
+				if ("0".equals(returnCode)) {
+					recordCount = map.get("RECORD_COUNT");
+				} else {
+					errormsg = map.get("ERROR_MSG");
+					stackTrace = map.get("STACE_TRACE");
+				}
+				logger.info("sourceTable={}, sinkTable={}, returnCode={}, recordCount={}, errormsg={},stackTrace={}", 
+						sourceTable, sinkTable, returnCode, recordCount, errormsg, stackTrace);
+			}
+
 		} finally {
 			if (executor != null) executor.shutdown();
 		}
 
 	}
-	private static void saveToSink(DbConfig dbConfig, List<InterestedPartyContact> contactList) {
-		Connection sinkConn = null;
-		
-		try {
-			Class.forName(dbConfig.sinkDbDriver);
-			sinkConn = DriverManager.getConnection(dbConfig.sinkDbUrl, dbConfig.sinkDbUsername, dbConfig.sinkDbPassword);
 
-			String sql = "INSERT INTO " + SINK_TABLE_INTERESTED_PARTY_CONTACT + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) "
-					+ " values (?,?,?,?,?,?,?,?,?)";
-			PreparedStatement pstmt = sinkConn.prepareStatement(sql);	
-			
+	private Map<String, String> loadInterestedPartyContact(String sourceTableName, Integer roleType){
+		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		List<InterestedPartyContact> contactList = new ArrayList<>();
+		Map<String, String> map = new HashMap<>();
+		try {
+			Class.forName(config.sourceDbDriver);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			String sql = "select " + roleType + " as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id fetch next 10000 rows only";
+
+			Statement stmt = sourceConn.createStatement();
+			ResultSet resultSet = stmt.executeQuery(sql);
+
+			while (resultSet.next()) {
+				InterestedPartyContact contact = new InterestedPartyContact();
+				contact.setRoleType(resultSet.getInt("ROLE_TYPE"));
+				contact.setListId(resultSet.getLong("LIST_ID"));
+				contact.setPolicyId(resultSet.getLong("POLICY_ID"));
+				contact.setName(resultSet.getString("NAME"));
+				contact.setCertiCode(resultSet.getString("CERTI_CODE"));
+				contact.setMobileTel(resultSet.getString("MOBILE_TEL"));
+				contact.setEmail(resultSet.getString("EMAIL"));
+				contact.setAddressId(resultSet.getLong("ADDRESS_ID"));
+				contact.setAddress1(resultSet.getString("ADDRESS_1"));
+
+				contactList.add(contact);
+
+			}
+			resultSet.close();
+			stmt.close();
+
+			logger.info("query completed for table {}" + sourceTableName);
+
+			// save to sink db
 			int count = 0;
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, config.sinkDbUsername, config.sinkDbPassword);
+			sinkConn.setAutoCommit(false); 
+			PreparedStatement pstmt = sinkConn.prepareStatement(
+					"insert into " + config.sinkTableParty + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+							+ " values (?,?,?,?,?,?,?,?,?)");	
 			for (InterestedPartyContact contact : contactList) {
 				count++;
-				
 				pstmt.setInt(1, contact.getRoleType());
-				pstmt.setLong(2, contact.getListId());
+				if (contact.getListId() == null) {
+					pstmt.setNull(2, Types.BIGINT);
+				} else {
+					pstmt.setLong(2, contact.getListId());
+				}
 				if (contact.getPolicyId() == null) {
 					pstmt.setNull(3, Types.BIGINT);
 				} else {
@@ -154,47 +190,63 @@ public class InitialLoadApp {
 				} else {
 					pstmt.setString(9, contact.getAddress1());
 				}
-				
-				if (count % 100 == 0 || count == contactList.size()) {
+
+				pstmt.addBatch();
+
+				if (count % 500 == 0 || count == contactList.size()) {
 					pstmt.executeBatch();//executing the batch  
-					
+
 					logger.info("   >>>count={}, execute batch", count);
 				}
 			}
 			if (pstmt != null) pstmt.close();
-			
-			sinkConn.commit();  
-		
+
+			sinkConn.commit(); 
+
+			map.put("RETURN_CODE", "0");
+			map.put("SOURCE_TABLE", sourceTableName);
+			map.put("SINK_TABLE", config.sinkTableParty);
+			map.put("RECORD_COUNT", String.valueOf(contactList.size()));
+
 		}  catch (Exception e) {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+			map.put("RETURN_CODE", "-999");
+			map.put("SOURCE_TABLE", sourceTableName);
+			map.put("SINK_TABLE", config.sinkTableParty);
+			map.put("ERROR_MSG", e.getMessage());
+			map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
 		} finally {
-			if (sinkConn != null) {
+			if (sourceConn != null) {
 				try {
-					sinkConn.close();
+					sourceConn.close();
 				} catch (SQLException e) {
 					logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+					map.put("RETURN_CODE", "-999");
+					map.put("ERROR_MSG", e.getMessage());
+					map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
 				}
 			}
 		}
+		return map;
 	}
-	private static List<InterestedPartyContact> getInterestedPartyContact(DbConfig dbConfig, String tablename){
+	private void test1() throws Exception {
 		Connection sourceConn = null;
-		List<InterestedPartyContact> contactList = new ArrayList<>();
+		Connection sinkConn = null;
 		try {
-			Class.forName(dbConfig.sourceDbDriver);
-			sourceConn = DriverManager.getConnection(dbConfig.sourceDbUrl, dbConfig.sourceDbUsername, dbConfig.sourceDbPassword);
+			Class.forName(config.sourceDbDriver);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
 
-			String sql = "";
-			if (TABLE_POLICY_HOLDER.equals(tablename)) {
-				sql = "select 1 as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + TABLE_POLICY_HOLDER + " a inner join t_address b on a.address_id = b.address_id";
-			} else if (TABLE_INSURED_LIST.equals(tablename)) {
-				sql = "select 2 as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + TABLE_INSURED_LIST + " a inner join t_address b on a.address_id = b.address_id";
-			} else if (TABLE_CONTRACT_BENE.equals(tablename)) {
-				sql = "select 3 as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + TABLE_CONTRACT_BENE + " a inner join t_address b on a.address_id = b.address_id";
-			} 
+			// truncate table
 			Statement stmt = sourceConn.createStatement();
-			ResultSet resultSet = stmt.executeQuery(sql);
+			ResultSet resultSet = stmt.executeQuery(
+					"select 1 as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from t_policy_holder a inner join t_address b on a.address_id = b.address_id \n" + 
+							" union \n" + 
+							" select 2 as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from t_insured_list a inner join t_address b on a.address_id = b.address_id \n" + 
+							" union \n" + 
+					"  select 3 as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from t_contract_bene a inner join t_address b on a.address_id = b.address_id \n" );
 
+
+			List<InterestedPartyContact> contactList = new ArrayList<>();
 			while (resultSet.next()) {
 				InterestedPartyContact contact = new InterestedPartyContact();
 				contact.setRoleType(resultSet.getInt("ROLE_TYPE"));
@@ -208,41 +260,74 @@ public class InitialLoadApp {
 				contact.setAddress1(resultSet.getString("ADDRESS_1"));
 
 				contactList.add(contact);
+
 			}
 			resultSet.close();
 			stmt.close();
 
-		}  catch (Exception e) {
-			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
-		} finally {
-			if (sourceConn != null) {
-				try {
-					sourceConn.close();
-				} catch (SQLException e) {
-					logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+			// save to sink db
+			int count = 0;
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, config.sinkDbUsername, config.sinkDbPassword);
+			sinkConn.setAutoCommit(false); 
+			PreparedStatement pstmt = sinkConn.prepareStatement(
+					"insert into " + config.sinkTableParty + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+							+ " values (?,?,?,?,?,?,?,?,?)");	
+			for (InterestedPartyContact contact : contactList) {
+				count++;
+				pstmt.setInt(1, contact.getRoleType());
+				if (contact.getListId() == null) {
+					pstmt.setNull(2, Types.BIGINT);
+				} else {
+					pstmt.setLong(2, contact.getListId());
+				}
+				if (contact.getPolicyId() == null) {
+					pstmt.setNull(3, Types.BIGINT);
+				} else {
+					pstmt.setLong(3, contact.getPolicyId());
+				}
+				if (contact.getName() == null) {
+					pstmt.setNull(4, Types.VARCHAR);
+				} else {
+					pstmt.setString(4, contact.getName());
+				}
+				if (contact.getCertiCode() == null) {
+					pstmt.setNull(5, Types.VARCHAR);
+				} else {
+					pstmt.setString(5, contact.getCertiCode());
+				}
+				if (contact.getMobileTel() == null) {
+					pstmt.setNull(6, Types.VARCHAR);
+				} else {
+					pstmt.setString(6, contact.getMobileTel());
+				}
+				if (contact.getEmail() == null) {
+					pstmt.setNull(7, Types.VARCHAR);
+				} else {
+					pstmt.setString(7, contact.getEmail());
+				}
+				if (contact.getAddressId() == null) {
+					pstmt.setNull(8, Types.BIGINT);
+				} else {
+					pstmt.setLong(8, contact.getAddressId());
+				}
+				if (contact.getAddress1() == null) {
+					pstmt.setNull(9, Types.VARCHAR);
+				} else {
+					pstmt.setString(9, contact.getAddress1());
+				}
+
+				pstmt.addBatch();
+
+				if (count % 500 == 0 || count == contactList.size()) {
+					pstmt.executeBatch();//executing the batch  
+
+					logger.info("   >>>count={}, execute batch", count);
 				}
 			}
-		}
-		return contactList;
-	}
-	private static void test1(DbConfig dbConfig) throws Exception {
-		Connection sourceConn = null;
-		try {
-			Class.forName(dbConfig.sourceDbDriver);
-			sourceConn = DriverManager.getConnection(dbConfig.sourceDbUrl, dbConfig.sourceDbUsername, dbConfig.sourceDbPassword);
+			if (pstmt != null) pstmt.close();
 
-			// truncate table
-			Statement stmt = sourceConn.createStatement();
-			ResultSet resultSet = stmt.executeQuery(
-					"select a.ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from t_policy_holder a inner join t_address b on a.address_id = b.address_id \n" + 
-							" union all\n" + 
-							" select a.ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from t_insured_list a inner join t_address b on a.address_id = b.address_id \n" + 
-							" union all\n" + 
-					"  select a.ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from t_contract_bene a inner join t_address b on a.address_id = b.address_id \n" );
+			sinkConn.commit(); 
 
-
-			resultSet.close();
-			stmt.close();
 		}  catch (Exception e) {
 			throw e;
 		} finally {
@@ -254,5 +339,203 @@ public class InitialLoadApp {
 				}
 			}
 		}
+	}
+	private void test3() throws Exception {
+
+		ExecutorService executor = Executors.newFixedThreadPool(11);
+		try {
+
+			Long maxSeq = 8935503221L;
+		//	Long seq = 10000000L;
+			Long beginSeq = 0L;
+			Long intervalSeq = 100000L;
+			List<LoadBean> loadBeanList = new ArrayList<>();
+			while (beginSeq <= maxSeq) {
+				LoadBean loadBean = new LoadBean();
+				loadBean.fullTableName = config.sourceTablePolicyHolder;
+				loadBean.roleType = 1;
+				loadBean.startSeq = beginSeq;
+				loadBean.endSeq = beginSeq + intervalSeq;
+				loadBeanList.add(loadBean);
+				
+				beginSeq = beginSeq + intervalSeq;
+			}
+			LoadBean loadBean = new LoadBean();
+			loadBean.fullTableName = config.sourceTablePolicyHolder;
+			loadBean.roleType = 1;
+			loadBean.startSeq = beginSeq;
+			loadBean.endSeq = maxSeq;
+			loadBeanList.add(loadBean);
+
+			//			fulleSourceTableNames.add(config.sourceTableInsuredList);
+			//			fulleSourceTableNames.add(config.sourceTableContractBene);
+
+//			Map<String, Integer> roleTypeMap = new HashMap<>();
+//			roleTypeMap.put(config.sourceTablePolicyHolder, 1);
+//			roleTypeMap.put(config.sourceTableInsuredList, 2);
+//			roleTypeMap.put(config.sourceTableContractBene, 3);
+			
+			List<CompletableFuture<Map<String, String>>> futures = 
+					loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
+							() -> loadInterestedPartyContact3(t.fullTableName, t.roleType, t.startSeq, t.endSeq), executor))
+					.collect(Collectors.toList());
+
+			List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
+
+			for (Map<String, String> map : result) {
+				String sourceTable = map.get("SOURCE_TABLE");
+				String sinkTable = map.get("SINK_TABLE");
+				String returnCode = map.get("RETURN_CODE");
+				String recordCount = "";
+				String errormsg = "";
+				String stackTrace = "";
+				if ("0".equals(returnCode)) {
+					recordCount = map.get("RECORD_COUNT");
+				} else {
+					errormsg = map.get("ERROR_MSG");
+					stackTrace = map.get("STACE_TRACE");
+				}
+				logger.info("sourceTable={}, sinkTable={}, returnCode={}, recordCount={}, errormsg={},stackTrace={}", 
+						sourceTable, sinkTable, returnCode, recordCount, errormsg, stackTrace);
+			}
+
+		} finally {
+			if (executor != null) executor.shutdown();
+		}
+
+	}
+	private Map<String, String> loadInterestedPartyContact3(String sourceTableName, Integer roleType, Long startSeq, Long endSeq){
+		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		List<InterestedPartyContact> contactList = new ArrayList<>();
+		Map<String, String> map = new HashMap<>();
+		try {
+			Class.forName(config.sourceDbDriver);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			String sql = "select " + roleType + " as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
+					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq;
+
+			logger.info(">>> sql= {}",sql);
+
+			Statement stmt = sourceConn.createStatement();
+			ResultSet resultSet = stmt.executeQuery(sql);
+
+			//			Long c = 0L;
+			while (resultSet.next()) {
+				//				c++;
+				//				if ( c % 1000 == 0) {
+				//					logger.info(">>> query count= {}",c);
+				//				}
+				InterestedPartyContact contact = new InterestedPartyContact();
+				contact.setRoleType(resultSet.getInt("ROLE_TYPE"));
+				contact.setListId(resultSet.getLong("LIST_ID"));
+				contact.setPolicyId(resultSet.getLong("POLICY_ID"));
+				contact.setName(resultSet.getString("NAME"));
+				contact.setCertiCode(resultSet.getString("CERTI_CODE"));
+				contact.setMobileTel(resultSet.getString("MOBILE_TEL"));
+				contact.setEmail(resultSet.getString("EMAIL"));
+				contact.setAddressId(resultSet.getLong("ADDRESS_ID"));
+				contact.setAddress1(resultSet.getString("ADDRESS_1"));
+
+				contactList.add(contact);
+
+			}
+			resultSet.close();
+			stmt.close();
+
+			logger.info("query completed for table {}",sourceTableName);
+
+			// save to sink db
+			int count = 0;
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, config.sinkDbUsername, config.sinkDbPassword);
+			sinkConn.setAutoCommit(false); 
+			PreparedStatement pstmt = sinkConn.prepareStatement(
+					"insert into " + config.sinkTableParty + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+							+ " values (?,?,?,?,?,?,?,?,?)");	
+			for (InterestedPartyContact contact : contactList) {
+				count++;
+				pstmt.setInt(1, contact.getRoleType());
+				if (contact.getListId() == null) {
+					pstmt.setNull(2, Types.BIGINT);
+				} else {
+					pstmt.setLong(2, contact.getListId());
+				}
+				if (contact.getPolicyId() == null) {
+					pstmt.setNull(3, Types.BIGINT);
+				} else {
+					pstmt.setLong(3, contact.getPolicyId());
+				}
+				if (contact.getName() == null) {
+					pstmt.setNull(4, Types.VARCHAR);
+				} else {
+					pstmt.setString(4, contact.getName());
+				}
+				if (contact.getCertiCode() == null) {
+					pstmt.setNull(5, Types.VARCHAR);
+				} else {
+					pstmt.setString(5, contact.getCertiCode());
+				}
+				if (contact.getMobileTel() == null) {
+					pstmt.setNull(6, Types.VARCHAR);
+				} else {
+					pstmt.setString(6, contact.getMobileTel());
+				}
+				if (contact.getEmail() == null) {
+					pstmt.setNull(7, Types.VARCHAR);
+				} else {
+					pstmt.setString(7, contact.getEmail());
+				}
+				if (contact.getAddressId() == null) {
+					pstmt.setNull(8, Types.BIGINT);
+				} else {
+					pstmt.setLong(8, contact.getAddressId());
+				}
+				if (contact.getAddress1() == null) {
+					pstmt.setNull(9, Types.VARCHAR);
+				} else {
+					pstmt.setString(9, contact.getAddress1());
+				}
+
+				pstmt.addBatch();
+
+				if (count % 500 == 0 || count == contactList.size()) {
+					pstmt.executeBatch();//executing the batch  
+
+					logger.info("   >>>count={}, execute batch", count);
+				}
+			}
+			logger.info("   >>>count={}, startSeq={},endSeq={} ", count, startSeq, endSeq);
+			
+			if (pstmt != null) pstmt.close();
+
+			sinkConn.commit(); 
+
+			map.put("RETURN_CODE", "0");
+			map.put("SOURCE_TABLE", sourceTableName);
+			map.put("SINK_TABLE", config.sinkTableParty);
+			map.put("RECORD_COUNT", String.valueOf(contactList.size()));
+
+		}  catch (Exception e) {
+			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+			map.put("RETURN_CODE", "-999");
+			map.put("SOURCE_TABLE", sourceTableName);
+			map.put("SINK_TABLE", config.sinkTableParty);
+			map.put("ERROR_MSG", e.getMessage());
+			map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+					map.put("RETURN_CODE", "-999");
+					map.put("ERROR_MSG", e.getMessage());
+					map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
+				}
+			}
+		}
+		return map;
 	}
 }
