@@ -51,7 +51,7 @@ public class InitialLoadApp {
 			//			logger.info(" test1 span={}", (System.currentTimeMillis() - t0));
 			//
 			t0 = System.currentTimeMillis();
-			app.test3();
+			app.test4();
 			logger.info(" test3 span={}", (System.currentTimeMillis() - t0));
 
 		} catch (Exception e) {
@@ -500,7 +500,7 @@ public class InitialLoadApp {
 
 				pstmt.addBatch();
 
-				if (count % 500 == 0 || count == contactList.size()) {
+				if (count % 1000 == 0 || count == contactList.size()) {
 					pstmt.executeBatch();//executing the batch  
 
 					logger.info("   >>>count={}, execute batch", count);
@@ -538,4 +538,177 @@ public class InitialLoadApp {
 		}
 		return map;
 	}
+	private Map<String, String> loadInterestedPartyContact4(String sourceTableName, Integer roleType, Long startSeq, Long endSeq){
+		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+
+		Map<String, String> map = new HashMap<>();
+		try {
+			Class.forName(config.sourceDbDriver);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+	
+			String sql = "select " + roleType + " as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
+					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq;
+	
+			logger.info(">>> sql= {}",sql);
+	
+			Statement stmt = sourceConn.createStatement();
+			ResultSet resultSet = stmt.executeQuery(sql);
+	
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, config.sinkDbUsername, config.sinkDbPassword);
+			sinkConn.setAutoCommit(false); 
+			PreparedStatement pstmt = sinkConn.prepareStatement(
+					"insert into " + config.sinkTableParty + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+							+ " values (?,?,?,?,?,?,?,?,?)");
+			Long count = 0L;
+			while (resultSet.next()) {
+				count++;
+				
+				pstmt.setInt(1, resultSet.getInt("ROLE_TYPE"));
+				Long listId = resultSet.getLong("LIST_ID");
+				Long policyId = resultSet.getLong("POLICY_ID");
+				String name = resultSet.getString("NAME");
+				String certiCode = resultSet.getString("CERTI_CODE");
+				String mobileTel = resultSet.getString("MOBILE_TEL");
+				String email = resultSet.getString("EMAIL");
+				Long addressId = resultSet.getLong("ADDRESS_ID");
+				String address1 = resultSet.getString("ADDRESS_1");
+				
+				pstmt.setLong(2, listId);
+				pstmt.setLong(3, policyId);
+				
+				if (name == null) {
+					pstmt.setNull(4, Types.VARCHAR);
+				} else {
+					pstmt.setString(4, name);
+				}
+				if (certiCode== null) {
+					pstmt.setNull(5, Types.VARCHAR);
+				} else {
+					pstmt.setString(5, certiCode);
+				}
+				if (mobileTel == null) {
+					pstmt.setNull(6, Types.VARCHAR);
+				} else {
+					pstmt.setString(6, mobileTel);
+				}
+				if (email == null) {
+					pstmt.setNull(7, Types.VARCHAR);
+				} else {
+					pstmt.setString(7, email);
+				}
+				pstmt.setLong(8, addressId);
+				if (address1 == null) {
+					pstmt.setNull(9, Types.VARCHAR);
+				} else {
+					pstmt.setString(9, address1);
+				}
+	
+				pstmt.addBatch();
+				
+				if (count % 1000 == 0) {
+					pstmt.executeBatch();//executing the batch  
+	
+					logger.info("   >>>count={}, execute batch", count);
+				}
+			}
+			logger.info("   >>>count={}, startSeq={},endSeq={} ", count, startSeq, endSeq);
+			pstmt.executeBatch();
+			if (pstmt != null) pstmt.close();
+			if (count > 0) sinkConn.commit(); 
+			
+			resultSet.close();
+			stmt.close();
+
+			map.put("RETURN_CODE", "0");
+			map.put("SOURCE_TABLE", sourceTableName);
+			map.put("SINK_TABLE", config.sinkTableParty);
+			map.put("RECORD_COUNT", String.valueOf(count));
+	
+		}  catch (Exception e) {
+			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+			map.put("RETURN_CODE", "-999");
+			map.put("SOURCE_TABLE", sourceTableName);
+			map.put("SINK_TABLE", config.sinkTableParty);
+			map.put("ERROR_MSG", e.getMessage());
+			map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+					map.put("RETURN_CODE", "-999");
+					map.put("ERROR_MSG", e.getMessage());
+					map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
+				}
+			}
+		}
+		return map;
+	}
+	private void test4() throws Exception {
+	
+			ExecutorService executor = Executors.newFixedThreadPool(11);
+			try {
+	
+				Long maxSeq = 8935503221L;
+			//	Long seq = 10000000L;
+				Long beginSeq = 0L;
+				Long intervalSeq = 100000L;
+				List<LoadBean> loadBeanList = new ArrayList<>();
+				while (beginSeq <= maxSeq) {
+					LoadBean loadBean = new LoadBean();
+					loadBean.fullTableName = config.sourceTablePolicyHolder;
+					loadBean.roleType = 1;
+					loadBean.startSeq = beginSeq;
+					loadBean.endSeq = beginSeq + intervalSeq;
+					loadBeanList.add(loadBean);
+					
+					beginSeq = beginSeq + intervalSeq;
+				}
+				LoadBean loadBean = new LoadBean();
+				loadBean.fullTableName = config.sourceTablePolicyHolder;
+				loadBean.roleType = 1;
+				loadBean.startSeq = beginSeq;
+				loadBean.endSeq = maxSeq;
+				loadBeanList.add(loadBean);
+	
+				//			fulleSourceTableNames.add(config.sourceTableInsuredList);
+				//			fulleSourceTableNames.add(config.sourceTableContractBene);
+	
+	//			Map<String, Integer> roleTypeMap = new HashMap<>();
+	//			roleTypeMap.put(config.sourceTablePolicyHolder, 1);
+	//			roleTypeMap.put(config.sourceTableInsuredList, 2);
+	//			roleTypeMap.put(config.sourceTableContractBene, 3);
+				
+				List<CompletableFuture<Map<String, String>>> futures = 
+						loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
+								() -> loadInterestedPartyContact4(t.fullTableName, t.roleType, t.startSeq, t.endSeq), executor))
+						.collect(Collectors.toList());
+	
+				List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
+	
+				for (Map<String, String> map : result) {
+					String sourceTable = map.get("SOURCE_TABLE");
+					String sinkTable = map.get("SINK_TABLE");
+					String returnCode = map.get("RETURN_CODE");
+					String recordCount = "";
+					String errormsg = "";
+					String stackTrace = "";
+					if ("0".equals(returnCode)) {
+						recordCount = map.get("RECORD_COUNT");
+					} else {
+						errormsg = map.get("ERROR_MSG");
+						stackTrace = map.get("STACE_TRACE");
+					}
+					logger.info("sourceTable={}, sinkTable={}, returnCode={}, recordCount={}, errormsg={},stackTrace={}", 
+							sourceTable, sinkTable, returnCode, recordCount, errormsg, stackTrace);
+				}
+	
+			} finally {
+				if (executor != null) executor.shutdown();
+			}
+	
+		}
 }
