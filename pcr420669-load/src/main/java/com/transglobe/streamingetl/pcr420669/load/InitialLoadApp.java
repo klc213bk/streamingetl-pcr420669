@@ -48,7 +48,7 @@ public class InitialLoadApp {
 	private Config config;
 
 	public InitialLoadApp(String fileName) throws Exception {
-		config = Config.getConfig(CONFIG_FILE_NAME);
+		config = Config.getConfig(fileName);
 
 		sourceConnectionPool = new BasicDataSource();
 

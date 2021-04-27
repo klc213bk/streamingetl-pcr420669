@@ -110,5 +110,6 @@
 	<modules>
 		<module>pcr420669-test</module>
 		<module>pcr420669-load</module>
+		<module>pcr420669-consumer</module>
 	</modules>
 </project>
