@@ -5,10 +5,14 @@ import java.util.Arrays;
 import java.util.Properties;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 
 public class ConsumerApp {
@@ -42,21 +46,75 @@ public class ConsumerApp {
 		props.setProperty("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 
 		KafkaConsumer<String, String> consumer = null;
+		try {
+			consumer = new KafkaConsumer<>(props);
+			consumer.subscribe(config.topicList);
 
-		consumer = new KafkaConsumer<>(props);
-		consumer.subscribe(config.topicList);
+			while (true) {
 
-		while (true) {
+				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
 
-			ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
+				if (!records.isEmpty()) {
+					int count = 0;
+					for (ConsumerRecord<String, String> record : records) {
+						logger.info(">>>Topic: {}, Partition: {}, Offset: {}, key: {}, value: {}", record.topic(), record.partition(), record.offset(), record.key(), record.value());
+						ObjectMapper objectMapper = new ObjectMapper();
+						count++;
+						
+						try {
+							JsonNode jsonNode = objectMapper.readTree(record.value());
+							String operation = jsonNode.get("payload").get("OPERATION").asText();
+							if ("INSERT".equals(operation)) {
+//								
+//								setPreparedStatement(jsonNode, pstmt);
+//							
+//								pstmt.addBatch();
+//								
+//								if (count % 100 == 0 || count == records.count()) {
+//									pstmt.executeBatch();//executing the batch  
+//									
+//									logger.info("   >>>count={}, execute batch", count);
+//								}
+							} else if ("UPDATE".equals(operation)) {
+//								String updateSql = getUpdateSql(jsonNode, sinkFullTableName);
+								String sinkSqlRedo = jsonNode.get("payload").get("SINK_SQL_REDO").asText();
+								logger.info("   >>>update,sink redoStr={}", sinkSqlRedo);
+//								
+//								pstmt2 = conn.prepareStatement(sinkSqlRedo);
+//								pstmt2.executeBatch();
+								
+							}
+							
+						} catch (Exception e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+							logger.error(e.getMessage(), e);
 
-			if (!records.isEmpty()) {
-				
-				
-				consumer.commitSync();
+						} 
+					} 
+//					if (pstmt != null) pstmt.close();
+//					
+//					if (pstmt2 != null) pstmt2.close();
+//					
+//					conn.commit();  
+//					
+//					conn.close();  
+					
+					consumer.commitSync();
+				}
+
+			}
+		} catch (Exception e) {
+			logger.error("Consumer error", e);
+			System.exit(1);
+		} catch (Throwable e) {
+
+		} finally {
+			try {
+				consumer.commitSync(); 
+			} finally {
+				consumer.close();
 			}
 		}
 	}
-}
-
 }
