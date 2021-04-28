@@ -221,7 +221,7 @@ public class InitialLoadApp {
 			resultSet.close();
 			stmt.close();
 			sourceConn.close();
-	
+			logger.info(">>> max address id={}", maxSeq);
 			
 			// create table
 			ClassLoader loader = InitialLoadApp.class.getClassLoader();
@@ -232,12 +232,16 @@ public class InitialLoadApp {
 			String creatTableScript = Files.readAllLines(path, StandardCharsets.UTF_8).stream()
 		     .collect(Collectors.joining(System.lineSeparator()));
 		    		
-			logger.info(">>> create table={}", creatTableScript);
-     
 			Connection sinkConn = this.sinkConnectionPool.getConnection();
 			stmt = sinkConn.createStatement();
-			stmt.executeUpdate("DROP TABLE T_INTERESTED_PARTY_CONTACT");
+			try {
+				stmt.executeUpdate("DROP TABLE T_INTERESTED_PARTY_CONTACT");
+			} catch (java.sql.SQLSyntaxErrorException e) {
+				logger.info(">>> err mesg={}, continue to create table", e.getMessage());
+
+			}
 			stmt.executeUpdate(creatTableScript);
+			logger.info(">>> sink table={} created.", creatTableScript);
 			
 			stmt.close();
 			sinkConn.close();
@@ -247,8 +251,8 @@ public class InitialLoadApp {
 			
 			List<String> fullTableNameList = new ArrayList<>();
 			fullTableNameList.add(config.sourceTablePolicyHolder);
-//			fullTableNameList.add(config.sourceTableInsuredList);
-//			fullTableNameList.add(config.sourceTableContractBene);
+			fullTableNameList.add(config.sourceTableInsuredList);
+			fullTableNameList.add(config.sourceTableContractBene);
 			for (String fullTableName : fullTableNameList) {
 				Long beginSeq = 0L;
 
@@ -256,7 +260,13 @@ public class InitialLoadApp {
 				while (beginSeq <= maxSeq) {
 					LoadBean loadBean = new LoadBean();
 					loadBean.fullTableName = fullTableName;
-					loadBean.roleType = 1;
+					if (config.sourceTablePolicyHolder.equals(fullTableName)) {
+						loadBean.roleType = 1;
+					} else if (config.sourceTableInsuredList.equals(fullTableName)) {
+						loadBean.roleType = 2;
+					} else if (config.sourceTableContractBene.equals(fullTableName)) {
+						loadBean.roleType = 3;
+				    }
 					loadBean.startSeq = beginSeq;
 					loadBean.endSeq = beginSeq + SEQ_INTERVAL;
 					loadBeanList.add(loadBean);
