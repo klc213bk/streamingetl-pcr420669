@@ -1,19 +1,12 @@
 #!/bin/bash
 
-COMMON_HOME=/home/oracle/gitrepository/transglobe/streamingetl-common
-APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
-LOGMINER_HOME=/home/oracle/gitrepository/kafka-connect-oracle
+#APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
 #CONSUMER_HOME=/home/oracle/gitrepository/transglobe-esp-kafka-consumer
 
-#COMMON_HOME=/home/oracle/gitrepository/transglobe/streamingetl-common
-#APP_HOME=/home/feib/gitrepository/transglobe/streamingetl-pcr420669
-#LOGMINER_HOME=/home/feib/gitrepository/kafka-connect-oracle
+APP_HOME=/home/feib/gitrepository/transglobe/streamingetl-pcr420669
 #CONSUMER_HOME=/home/feib/gitrepository/transglobe-esp-kafka-consumer
-
-cd ${COMMON_HOME}
-mvn clean package
-cp ${COMMON_HOME}/target/streamingetl-common-1.0.jar "${APP_HOME}/lib"
 
 cd ${APP_HOME}
 mvn clean package
-
+cp ${APP_HOME}/pcr420669-consumer/target/pcr420669-consumer-1.0.jar "${APP_HOME}/lib"
+cp ${APP_HOME}/pcr420669-load/target/pcr420669-load-1.0.jar "${APP_HOME}/lib"
