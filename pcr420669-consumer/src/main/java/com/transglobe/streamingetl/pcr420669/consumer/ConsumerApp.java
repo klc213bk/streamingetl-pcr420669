@@ -2,9 +2,16 @@ package com.transglobe.streamingetl.pcr420669.consumer;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -31,6 +38,8 @@ public class ConsumerApp {
 		try {
 			app = new ConsumerApp(CONFIG_FILE_NAME);
 
+			app.createTopics();
+			
 			app.run();
 		} catch (Exception e) {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
@@ -47,6 +56,7 @@ public class ConsumerApp {
 
 		KafkaConsumer<String, String> consumer = null;
 		try {
+				
 			consumer = new KafkaConsumer<>(props);
 			consumer.subscribe(config.topicList);
 
@@ -60,31 +70,32 @@ public class ConsumerApp {
 						logger.info(">>>Topic: {}, Partition: {}, Offset: {}, key: {}, value: {}", record.topic(), record.partition(), record.offset(), record.key(), record.value());
 						ObjectMapper objectMapper = new ObjectMapper();
 						count++;
-						
+
 						try {
+							logger.info("   >>>record.value()={}", record.value());
 							JsonNode jsonNode = objectMapper.readTree(record.value());
 							String operation = jsonNode.get("payload").get("OPERATION").asText();
 							if ("INSERT".equals(operation)) {
-//								
-//								setPreparedStatement(jsonNode, pstmt);
-//							
-//								pstmt.addBatch();
-//								
-//								if (count % 100 == 0 || count == records.count()) {
-//									pstmt.executeBatch();//executing the batch  
-//									
-//									logger.info("   >>>count={}, execute batch", count);
-//								}
+								//								
+								//								setPreparedStatement(jsonNode, pstmt);
+								//							
+								//								pstmt.addBatch();
+								//								
+								//								if (count % 100 == 0 || count == records.count()) {
+								//									pstmt.executeBatch();//executing the batch  
+								//									
+								//									logger.info("   >>>count={}, execute batch", count);
+								//								}
 							} else if ("UPDATE".equals(operation)) {
-//								String updateSql = getUpdateSql(jsonNode, sinkFullTableName);
+								//								String updateSql = getUpdateSql(jsonNode, sinkFullTableName);
 								String sinkSqlRedo = jsonNode.get("payload").get("SINK_SQL_REDO").asText();
 								logger.info("   >>>update,sink redoStr={}", sinkSqlRedo);
-//								
-//								pstmt2 = conn.prepareStatement(sinkSqlRedo);
-//								pstmt2.executeBatch();
-								
+								//								
+								//								pstmt2 = conn.prepareStatement(sinkSqlRedo);
+								//								pstmt2.executeBatch();
+
 							}
-							
+
 						} catch (Exception e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
@@ -92,14 +103,14 @@ public class ConsumerApp {
 
 						} 
 					} 
-//					if (pstmt != null) pstmt.close();
-//					
-//					if (pstmt2 != null) pstmt2.close();
-//					
-//					conn.commit();  
-//					
-//					conn.close();  
-					
+					//					if (pstmt != null) pstmt.close();
+					//					
+					//					if (pstmt2 != null) pstmt2.close();
+					//					
+					//					conn.commit();  
+					//					
+					//					conn.close();  
+
 					consumer.commitSync();
 				}
 
@@ -116,5 +127,31 @@ public class ConsumerApp {
 				consumer.close();
 			}
 		}
+	}
+
+	private void createTopics() throws InterruptedException, ExecutionException {
+		
+		String bootstrapServers = config.bootstrapServers;
+		List<String> topicList = config.topicList;
+		
+		Properties config = new Properties();
+		config.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+		AdminClient admin = AdminClient.create(config);
+		
+		Set<String> existingTopics = admin.listTopics().names().get();
+		//listing
+		System.out.println("-- listing --");
+		admin.listTopics().names().get().forEach(System.out::println);
+				
+		//creating new topic
+		System.out.println("-- creating --");
+		for (String topic : topicList) {
+			if (!existingTopics.contains(topic)) {
+				NewTopic newTopic = new NewTopic(topic, 1, (short) 1);
+				admin.createTopics(Collections.singleton(newTopic));
+			}
+		}
+
+		
 	}
 }

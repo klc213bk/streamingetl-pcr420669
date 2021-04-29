@@ -1,10 +1,7 @@
 #!/bin/bash
 
-#APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
-#CONSUMER_HOME=/home/oracle/gitrepository/transglobe-esp-kafka-consumer
-
-APP_HOME=/home/feib/gitrepository/transglobe/streamingetl-pcr420669
-#CONSUMER_HOME=/home/feib/gitrepository/transglobe-esp-kafka-consumer
+APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
+#APP_HOME=/home/feib/gitrepository/transglobe/streamingetl-pcr420669
 
 cd ${APP_HOME}
 mvn clean package

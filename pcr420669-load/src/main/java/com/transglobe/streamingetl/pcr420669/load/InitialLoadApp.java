@@ -1,7 +1,10 @@
 package com.transglobe.streamingetl.pcr420669.load;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
+import java.io.InputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,7 +26,11 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import org.apache.commons.dbcp2.BasicDataSource;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.ignite.Ignite;
+import org.apache.ignite.IgniteAtomicSequence;
+import org.apache.ignite.Ignition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +41,7 @@ public class InitialLoadApp {
 
 	private static final int THREADS = 10;
 
-	private static final long SEQ_INTERVAL = 1000000L;
+	private static final long SEQ_INTERVAL = 10000000000L;//1000000L;
 
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
@@ -89,13 +96,12 @@ public class InitialLoadApp {
 			app.run();
 
 			app.close();
-
-			//  policy holder, count: 7149994 span:544347, 5 thread
-			// insured_list, count:4068189 span:497937, 5 thread
-			// contract bene, count:9307598 span: 387480, 10 thread
+			
+			System.exit(0);
 
 		} catch (Exception e) {
 			e.printStackTrace();
+			System.exit(1);
 		}
 
 	}
@@ -112,7 +118,7 @@ public class InitialLoadApp {
 			Connection sinkConn = this.sinkConnectionPool.getConnection();
 
 			String sql = "select " + roleType + " as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
-					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq;
+					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq + " fetch next 10 rows only";
 
 	//		logger.info(">>> sql= {}", sql);
 
@@ -121,13 +127,18 @@ public class InitialLoadApp {
 
 			sinkConn.setAutoCommit(false); 
 			PreparedStatement pstmt = sinkConn.prepareStatement(
-					"insert into " + config.sinkTableParty + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
-							+ " values (?,?,?,?,?,?,?,?,?)");
+					"insert into " + config.sinkTableParty + " (SEQ_NO,ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+							+ " values (?,?,?,?,?,?,?,?,?,?)");
+			
+			Ignite ignite = Ignition.ignite();
+			final IgniteAtomicSequence seq = ignite.atomicSequence("partyContactSeqNo", 100, true);
+			
 			Long count = 0L;
 			while (resultSet.next()) {
 				count++;
-
-				pstmt.setInt(1, resultSet.getInt("ROLE_TYPE"));
+				long nextSeqNo = seq.incrementAndGet();
+				pstmt.setLong(1, nextSeqNo);
+				pstmt.setInt(2, resultSet.getInt("ROLE_TYPE"));
 				Long listId = resultSet.getLong("LIST_ID");
 				Long policyId = resultSet.getLong("POLICY_ID");
 				String name = resultSet.getString("NAME");
@@ -137,34 +148,36 @@ public class InitialLoadApp {
 				Long addressId = resultSet.getLong("ADDRESS_ID");
 				String address1 = resultSet.getString("ADDRESS_1");
 
-				pstmt.setLong(2, listId);
-				pstmt.setLong(3, policyId);
+				pstmt.setLong(3, listId);
+				pstmt.setLong(4, policyId);
 
 				if (name == null) {
-					pstmt.setNull(4, Types.VARCHAR);
-				} else {
-					pstmt.setString(4, name);
-				}
-				if (certiCode== null) {
 					pstmt.setNull(5, Types.VARCHAR);
 				} else {
-					pstmt.setString(5, certiCode);
+					pstmt.setString(5, name);
 				}
-				if (mobileTel == null) {
+				if (certiCode== null) {
 					pstmt.setNull(6, Types.VARCHAR);
 				} else {
-					pstmt.setString(6, mobileTel);
+					pstmt.setString(6, certiCode);
 				}
-				if (email == null) {
+				if (mobileTel == null) {
 					pstmt.setNull(7, Types.VARCHAR);
 				} else {
-					pstmt.setString(7, email);
+					pstmt.setString(7, mobileTel);
 				}
-				pstmt.setLong(8, addressId);
-				if (address1 == null) {
-					pstmt.setNull(9, Types.VARCHAR);
+				if (email == null) {
+					pstmt.setNull(8, Types.VARCHAR);
 				} else {
-					pstmt.setString(9, address1);
+					pstmt.setString(8, email);
+				}
+				
+				pstmt.setLong(9, addressId);
+				
+				if (address1 == null) {
+					pstmt.setNull(10, Types.VARCHAR);
+				} else {
+					pstmt.setString(10, address1);
 				}
 
 				pstmt.addBatch();
@@ -224,14 +237,11 @@ public class InitialLoadApp {
 			logger.info(">>> max address id={}", maxSeq);
 			
 			// create table
-			ClassLoader loader = InitialLoadApp.class.getClassLoader();
-			String filename = loader.getResource("createtable-T_INTERESTED_PARTY_CONTACT.sql").getPath();
+			ClassLoader loader = Thread.currentThread().getContextClassLoader();
+			InputStream inputStream = loader.getResourceAsStream("createtable-T_INTERESTED_PARTY_CONTACT.sql");
+
+			String createTableStr = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
 		
-			Path path = Paths.get(filename);
-			
-			String creatTableScript = Files.readAllLines(path, StandardCharsets.UTF_8).stream()
-		     .collect(Collectors.joining(System.lineSeparator()));
-		    		
 			Connection sinkConn = this.sinkConnectionPool.getConnection();
 			stmt = sinkConn.createStatement();
 			try {
@@ -240,8 +250,8 @@ public class InitialLoadApp {
 				logger.info(">>> err mesg={}, continue to create table", e.getMessage());
 
 			}
-			stmt.executeUpdate(creatTableScript);
-			logger.info(">>> sink table={} created.", creatTableScript);
+			stmt.executeUpdate(createTableStr);
+			logger.info(">>> sink table={} created.", createTableStr);
 			
 			stmt.close();
 			sinkConn.close();
