@@ -1,7 +1,7 @@
 #!/bin/bash
 
-APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
-#APP_HOME=/home/feib/gitrepository/transglobe/streamingetl-pcr420669
+#APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
+APP_HOME=/home/feib/gitrepository/transglobe/streamingetl-pcr420669
 
 cd ${APP_HOME}
 mvn clean package

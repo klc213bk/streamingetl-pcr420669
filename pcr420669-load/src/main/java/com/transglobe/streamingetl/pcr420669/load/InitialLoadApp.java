@@ -3,6 +3,7 @@ package com.transglobe.streamingetl.pcr420669.load;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -88,7 +90,7 @@ public class InitialLoadApp {
 	public static void main(String[] args) {
 		logger.info(">>> start run InitialLoadApp");
 
-		
+
 		try {
 
 			InitialLoadApp app = new InitialLoadApp(CONFIG_FILE_NAME);
@@ -96,7 +98,7 @@ public class InitialLoadApp {
 			app.run();
 
 			app.close();
-			
+
 			System.exit(0);
 
 		} catch (Exception e) {
@@ -107,38 +109,35 @@ public class InitialLoadApp {
 	}
 
 
-	
+
 	private Map<String, String> loadInterestedPartyContact(String sourceTableName, Integer roleType, Long startSeq, Long endSeq, Long t0){
-//		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
+		//		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
 
 		Map<String, String> map = new HashMap<>();
 		try {
-		
+
 			Connection sourceConn = this.sourceConnectionPool.getConnection();
 			Connection sinkConn = this.sinkConnectionPool.getConnection();
 
 			String sql = "select " + roleType + " as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
-					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq + " fetch next 10 rows only";
+					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq 
+					+ " and rownum < 10";
+				//	+ " fetch next 10 rows only";
 
-	//		logger.info(">>> sql= {}", sql);
+			//		logger.info(">>> sql= {}", sql);
 
 			Statement stmt = sourceConn.createStatement();
 			ResultSet resultSet = stmt.executeQuery(sql);
 
 			sinkConn.setAutoCommit(false); 
 			PreparedStatement pstmt = sinkConn.prepareStatement(
-					"insert into " + config.sinkTableParty + " (SEQ_NO,ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
-							+ " values (?,?,?,?,?,?,?,?,?,?)");
-			
-			Ignite ignite = Ignition.ignite();
-			final IgniteAtomicSequence seq = ignite.atomicSequence("partyContactSeqNo", 100, true);
-			
+					"insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+							+ " values (?,?,?,?,?,?,?,?,?)");
+
 			Long count = 0L;
 			while (resultSet.next()) {
 				count++;
-				long nextSeqNo = seq.incrementAndGet();
-				pstmt.setLong(1, nextSeqNo);
-				pstmt.setInt(2, resultSet.getInt("ROLE_TYPE"));
+
 				Long listId = resultSet.getLong("LIST_ID");
 				Long policyId = resultSet.getLong("POLICY_ID");
 				String name = resultSet.getString("NAME");
@@ -148,36 +147,37 @@ public class InitialLoadApp {
 				Long addressId = resultSet.getLong("ADDRESS_ID");
 				String address1 = resultSet.getString("ADDRESS_1");
 
-				pstmt.setLong(3, listId);
-				pstmt.setLong(4, policyId);
+				pstmt.setInt(1, resultSet.getInt("ROLE_TYPE"));
+				pstmt.setLong(2, listId);
+				pstmt.setLong(3, policyId);
 
 				if (name == null) {
-					pstmt.setNull(5, Types.VARCHAR);
+					pstmt.setNull(4, Types.VARCHAR);
 				} else {
-					pstmt.setString(5, name);
+					pstmt.setString(4, name);
 				}
 				if (certiCode== null) {
-					pstmt.setNull(6, Types.VARCHAR);
+					pstmt.setNull(5, Types.VARCHAR);
 				} else {
-					pstmt.setString(6, certiCode);
+					pstmt.setString(5, certiCode);
 				}
 				if (mobileTel == null) {
-					pstmt.setNull(7, Types.VARCHAR);
+					pstmt.setNull(6, Types.VARCHAR);
 				} else {
-					pstmt.setString(7, mobileTel);
+					pstmt.setString(6, mobileTel);
 				}
 				if (email == null) {
-					pstmt.setNull(8, Types.VARCHAR);
+					pstmt.setNull(7, Types.VARCHAR);
 				} else {
-					pstmt.setString(8, email);
+					pstmt.setString(7, email);
 				}
-				
-				pstmt.setLong(9, addressId);
-				
+
+				pstmt.setLong(8, addressId);
+
 				if (address1 == null) {
-					pstmt.setNull(10, Types.VARCHAR);
+					pstmt.setNull(9, Types.VARCHAR);
 				} else {
-					pstmt.setString(10, address1);
+					pstmt.setString(9, address1);
 				}
 
 				pstmt.addBatch();
@@ -189,7 +189,7 @@ public class InitialLoadApp {
 				}
 			}
 			logger.info("   >>>roletype={}, startSeq={}, count={}, span={} ", roleType, startSeq, count, (System.currentTimeMillis() - t0));
-			
+
 			pstmt.executeBatch();
 			if (pstmt != null) pstmt.close();
 			if (count > 0) sinkConn.commit(); 
@@ -202,14 +202,14 @@ public class InitialLoadApp {
 
 			map.put("RETURN_CODE", "0");
 			map.put("SOURCE_TABLE", sourceTableName);
-			map.put("SINK_TABLE", config.sinkTableParty);
+			map.put("SINK_TABLE", config.sinkTablePartyContact);
 			map.put("RECORD_COUNT", String.valueOf(count));
 
 		}  catch (Exception e) {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 			map.put("RETURN_CODE", "-999");
 			map.put("SOURCE_TABLE", sourceTableName);
-			map.put("SINK_TABLE", config.sinkTableParty);
+			map.put("SINK_TABLE", config.sinkTablePartyContact);
 			map.put("ERROR_MSG", e.getMessage());
 			map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
 		} finally {
@@ -231,34 +231,17 @@ public class InitialLoadApp {
 			while (resultSet.next()) {
 				maxSeq = resultSet.getLong("MAX_ADDRESS_ID");
 			}
+			maxSeq = maxSeq++;
 			resultSet.close();
 			stmt.close();
 			sourceConn.close();
 			logger.info(">>> max address id={}", maxSeq);
-			
+
 			// create table
-			ClassLoader loader = Thread.currentThread().getContextClassLoader();
-			InputStream inputStream = loader.getResourceAsStream("createtable-T_INTERESTED_PARTY_CONTACT.sql");
-
-			String createTableStr = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-		
 			Connection sinkConn = this.sinkConnectionPool.getConnection();
-			stmt = sinkConn.createStatement();
-			try {
-				stmt.executeUpdate("DROP TABLE T_INTERESTED_PARTY_CONTACT");
-			} catch (java.sql.SQLSyntaxErrorException e) {
-				logger.info(">>> err mesg={}, continue to create table", e.getMessage());
-
-			}
-			stmt.executeUpdate(createTableStr);
-			logger.info(">>> sink table={} created.", createTableStr);
-			
-			stmt.close();
+			createTable(sinkConn, config.sinkTablePartyContact);
 			sinkConn.close();
-			
 
-			maxSeq = maxSeq++;
-			
 			List<String> fullTableNameList = new ArrayList<>();
 			fullTableNameList.add(config.sourceTablePolicyHolder);
 			fullTableNameList.add(config.sourceTableInsuredList);
@@ -276,7 +259,7 @@ public class InitialLoadApp {
 						loadBean.roleType = 2;
 					} else if (config.sourceTableContractBene.equals(fullTableName)) {
 						loadBean.roleType = 3;
-				    }
+					}
 					loadBean.startSeq = beginSeq;
 					loadBean.endSeq = beginSeq + SEQ_INTERVAL;
 					loadBeanList.add(loadBean);
@@ -294,47 +277,47 @@ public class InitialLoadApp {
 						loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
 								() -> loadInterestedPartyContact(t.fullTableName, t.roleType, t.startSeq, t.endSeq, t0), executor))
 						.collect(Collectors.toList());			
-				
-			
-				
+
+
+
 				List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
 
 				logger.info("load span={}, ", (System.currentTimeMillis() - t0));
-				
-//				for (Map<String, String> map : result) {
-//					String sourceTable = map.get("SOURCE_TABLE");
-//					String sinkTable = map.get("SINK_TABLE");
-//					String returnCode = map.get("RETURN_CODE");
-//					String recordCount = "";
-//					String errormsg = "";
-//					String stackTrace = "";
-//					
-//					if ("0".equals(returnCode)) {
-//						recordCount = map.get("RECORD_COUNT");
-//					} else {
-//						errormsg = map.get("ERROR_MSG");
-//						stackTrace = map.get("STACE_TRACE");
-//					}
-					
-//					logger.info("sourceTable={}, sinkTable={}, returnCode={}, recordCount={}, errormsg={},stackTrace={}", 
-//							sourceTable, sinkTable, returnCode, recordCount, errormsg, stackTrace);
-//				}
+
+				//				for (Map<String, String> map : result) {
+				//					String sourceTable = map.get("SOURCE_TABLE");
+				//					String sinkTable = map.get("SINK_TABLE");
+				//					String returnCode = map.get("RETURN_CODE");
+				//					String recordCount = "";
+				//					String errormsg = "";
+				//					String stackTrace = "";
+				//					
+				//					if ("0".equals(returnCode)) {
+				//						recordCount = map.get("RECORD_COUNT");
+				//					} else {
+				//						errormsg = map.get("ERROR_MSG");
+				//						stackTrace = map.get("STACE_TRACE");
+				//					}
+
+				//					logger.info("sourceTable={}, sinkTable={}, returnCode={}, recordCount={}, errormsg={},stackTrace={}", 
+				//							sourceTable, sinkTable, returnCode, recordCount, errormsg, stackTrace);
+				//				}
 			}
-			
+
 			sinkConn = this.sinkConnectionPool.getConnection();
 			stmt = sinkConn.createStatement();
-			stmt.executeUpdate("CREATE INDEX IDX_INTERESTED_PARTY_CONTACT1 ON " + this.config.sinkTableParty + " (MOBILE_TEL)");
-			stmt.executeUpdate("CREATE INDEX IDX_INTERESTED_PARTY_CONTACT2 ON " + this.config.sinkTableParty + " (EMAIL)");
-			
+			stmt.executeUpdate("CREATE INDEX IDX_INTERESTED_PARTY_CONTACT1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL)");
+			stmt.executeUpdate("CREATE INDEX IDX_INTERESTED_PARTY_CONTACT2 ON " + this.config.sinkTablePartyContact + " (EMAIL)");
+			stmt.executeUpdate("CREATE INDEX IDX_INTERESTED_PARTY_CONTACT3 ON " + this.config.sinkTablePartyContact + " (ADDRESS_ID)");
 			stmt.close();
 			sinkConn.close();
-			
+
 			// check correction
 			// sink
 			Long t1 = System.currentTimeMillis();
 			sinkConn = this.sinkConnectionPool.getConnection();
 			stmt = sinkConn.createStatement();
-			resultSet = stmt.executeQuery("select count(*) as SINK_COUNT from " + this.config.sinkTableParty );
+			resultSet = stmt.executeQuery("select count(*) as SINK_COUNT from " + this.config.sinkTablePartyContact );
 			Long sinkCount = 0L;
 			while (resultSet.next()) {
 				sinkCount = resultSet.getLong("SINK_COUNT");
@@ -342,7 +325,7 @@ public class InitialLoadApp {
 			resultSet.close();
 			stmt.close();
 			sinkConn.close();
-			
+
 			// source 1
 			sourceConn = this.sourceConnectionPool.getConnection();
 			stmt = sourceConn.createStatement();
@@ -354,7 +337,7 @@ public class InitialLoadApp {
 			resultSet.close();
 			stmt.close();
 			sourceConn.close();
-			
+
 			// source 2
 			sourceConn = this.sourceConnectionPool.getConnection();
 			stmt = sourceConn.createStatement();
@@ -366,7 +349,7 @@ public class InitialLoadApp {
 			resultSet.close();
 			stmt.close();
 			sourceConn.close();
-			
+
 			// source 3
 			sourceConn = this.sourceConnectionPool.getConnection();
 			stmt = sourceConn.createStatement();
@@ -378,7 +361,7 @@ public class InitialLoadApp {
 			resultSet.close();
 			stmt.close();
 			sourceConn.close();
-			
+
 			Long sourceTotal = sourceCount1 + sourceCount2 + sourceCount3;
 			logger.info("sink count={}, source total={}, count1={}, count2={}, count3={}, span={}", sinkCount, sourceTotal, sourceCount1, sourceCount2, sourceCount3, (System.currentTimeMillis() - t1)); 
 
@@ -387,5 +370,27 @@ public class InitialLoadApp {
 
 		}
 	}
+	private void createTable(Connection conn, String sinkTableName) throws Exception {
 
+		Statement stmt = null;
+		try {
+			stmt = conn.createStatement();
+			stmt.executeUpdate("DROP TABLE " + sinkTableName);
+		} catch (java.sql.SQLSyntaxErrorException e) {
+			logger.info(">>> err mesg={}, continue to create table", e.getMessage());
+
+		}
+		stmt.close();
+		
+		ClassLoader loader = Thread.currentThread().getContextClassLoader();	
+		try (InputStream inputStream = loader.getResourceAsStream("createtable-T_PARTY_CONTACT.sql")) {
+			String createTableScript = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+			stmt = conn.createStatement();
+			stmt.executeUpdate(createTableScript);
+		} catch (SQLException | IOException e) {
+			if (stmt != null) stmt.close();
+			throw e;
+		}
+
+	}
 }

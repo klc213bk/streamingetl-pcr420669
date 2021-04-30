@@ -21,7 +21,7 @@ public class Config {
 	public String sinkDbUrl;
 	public String sinkDbUsername;
 	public String sinkDbPassword;
-	public String sinkTableParty;
+	public String sinkTablePartyContact;
 
 
 	public static Config getConfig(String fileName) throws Exception {
@@ -39,16 +39,16 @@ public class Config {
 			dbConfig.sourceDbUrl = prop.getProperty("source.db.url");
 			dbConfig.sourceDbUsername = prop.getProperty("source.db.username");
 			dbConfig.sourceDbPassword = prop.getProperty("source.db.password");
-			dbConfig.sourceTablePolicyHolder = prop.getProperty("source.table.policyholder");
-			dbConfig.sourceTableInsuredList = prop.getProperty("source.table.insuredlist");
-			dbConfig.sourceTableContractBene = prop.getProperty("source.table.contractbene");
+			dbConfig.sourceTablePolicyHolder = prop.getProperty("source.table.policy_holder");
+			dbConfig.sourceTableInsuredList = prop.getProperty("source.table.insured_list");
+			dbConfig.sourceTableContractBene = prop.getProperty("source.table.contract_bene");
 			dbConfig.sourceTableAddress = prop.getProperty("source.table.address");
 
 			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");
 			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
 			dbConfig.sinkDbUsername = prop.getProperty("sink.db.username");
 			dbConfig.sinkDbPassword = prop.getProperty("sink.db.password");
-			dbConfig.sinkTableParty = prop.getProperty("sink.table.party");
+			dbConfig.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 
 			return dbConfig;
 		} catch (Exception e) {

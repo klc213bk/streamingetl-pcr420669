@@ -1,24 +1,17 @@
 #!/bin/bash
 
-APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
-#APP_HOME=/home/feib/gitrepository/transglobe/streamingetl-pcr420669
+#APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
+APP_HOME=/home/feib/gitrepository/transglobe/streamingetl-pcr420669
 
-STATUS=-1
-# execute initial load
-if [ "$1" == "load" ]
+
+java -cp ${APP_HOME}/lib/pcr420669-load-1.0.jar:${APP_HOME}/lib/ojdbc8-12.2.0.1.jar com.transglobe.streamingetl.pcr420669.load.InitialLoadApp
+STATUS=$?	
+if [ ${STATUS} == 0 ]
 then
-  echo "with load"
-  java -cp ${APP_HOME}/lib/pcr420669-load-1.0.jar:${APP_HOME}/lib/ojdbc8-12.2.0.1.jar com.transglobe.streamingetl.pcr420669.load.InitialLoadApp
-  STATUS=$?	
-  if [ ${STATUS} == 0 ]
-  then
-  	echo "Status=${STATUS}, load data [ OK ]"
-  else 
-  	echo "Status=${STATUS}, load data [ Fail ]"
-  fi
-else
-  echo "without initial load"
-  STATUS=0
+ echo "Status=${STATUS}, load data [ OK ]"
+else 
+ echo "Status=${STATUS}, load data [ Fail ]"
 fi
+
 
 
