@@ -8,6 +8,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -20,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.transglobe.streamingetl.pcr420669.consumer.model.PolicyHolder;
 
 
 public class ConsumerApp {
@@ -70,12 +72,21 @@ public class ConsumerApp {
 						logger.info(">>>Topic: {}, Partition: {}, Offset: {}, key: {}, value: {}", record.topic(), record.partition(), record.offset(), record.key(), record.value());
 						ObjectMapper objectMapper = new ObjectMapper();
 						count++;
-
+						logger.info("   >>>count={}", count);
 						try {
 							logger.info("   >>>record.value()={}", record.value());
 							JsonNode jsonNode = objectMapper.readTree(record.value());
+							String tableName = jsonNode.get("payload").get("TABLE_NAME").asText();//"T_POLICY_HOLDER"							
 							String operation = jsonNode.get("payload").get("OPERATION").asText();
+							
+							logger.info("   >>>tableName={}, operation={}", tableName, operation);
+							
 							if ("INSERT".equals(operation)) {
+								String data = jsonNode.get("payload").get("data").toString();
+								ObjectMapper objectMapper2 = new ObjectMapper();
+								PolicyHolder policyHolder = objectMapper2.readValue(data, PolicyHolder.class);
+								logger.info("   >>>insert PolicyHolder={}", ToStringBuilder.reflectionToString(policyHolder));
+								
 								//								
 								//								setPreparedStatement(jsonNode, pstmt);
 								//							
@@ -94,6 +105,12 @@ public class ConsumerApp {
 								//								pstmt2 = conn.prepareStatement(sinkSqlRedo);
 								//								pstmt2.executeBatch();
 
+							} else if ("DELETE".equals(operation)) {
+								String before = jsonNode.get("payload").get("before").toString();
+								ObjectMapper objectMapper2 = new ObjectMapper();
+								PolicyHolder policyHolder = objectMapper2.readValue(before, PolicyHolder.class);
+								logger.info("   >>> delete PolicyHolder={}", ToStringBuilder.reflectionToString(policyHolder));
+								
 							}
 
 						} catch (Exception e) {
@@ -117,9 +134,8 @@ public class ConsumerApp {
 			}
 		} catch (Exception e) {
 			logger.error("Consumer error", e);
-			System.exit(1);
 		} catch (Throwable e) {
-
+			logger.error("Consumer error", e);
 		} finally {
 			try {
 				consumer.commitSync(); 
@@ -140,15 +156,14 @@ public class ConsumerApp {
 		
 		Set<String> existingTopics = admin.listTopics().names().get();
 		//listing
-		System.out.println("-- listing --");
 		admin.listTopics().names().get().forEach(System.out::println);
 				
 		//creating new topic
-		System.out.println("-- creating --");
 		for (String topic : topicList) {
 			if (!existingTopics.contains(topic)) {
 				NewTopic newTopic = new NewTopic(topic, 1, (short) 1);
 				admin.createTopics(Collections.singleton(newTopic));
+				logger.info(">>> topic={} created", topic);
 			}
 		}
 

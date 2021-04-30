@@ -4,10 +4,10 @@ commons-lang3-3.11.jar
 commons-logging-1.2.jar
 commons-pool2-2.8.1.jar
 ignite-core-2.9.1.jar
-#jackson-annotations-2.11.3.jar
-#jackson-core-2.11.3.jar
-#jackson-databind-2.11.3.jar
-#jsqlparser-1.2.jar
+jackson-annotations-2.11.3.jar
+jackson-core-2.11.3.jar
+jackson-databind-2.11.3.jar
+jsqlparser-1.2.jar
 kafka-clients-2.7.0.jar
 #kafka-streams-2.7.0.jar
 logback-classic-1.2.3.jar
