@@ -1,5 +1,6 @@
 package com.transglobe.streamingetl.pcr420669.consumer;
 
+import java.sql.Connection;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -8,6 +9,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -31,9 +33,18 @@ public class ConsumerApp {
 	private static final String CONFIG_FILE_NAME = "config.properties";
 
 	private Config config;
+	
+	private BasicDataSource connPool;
 
 	public ConsumerApp(String fileName) throws Exception {
 		config = Config.getConfig(fileName);
+		
+		connPool = new BasicDataSource();
+		connPool.setUrl(config.sinkDbUrl);
+		connPool.setUsername(config.sinkDbUsername);
+		connPool.setPassword(config.sinkDbPassword);
+		connPool.setDriverClassName(config.sinkDbDriver);
+		connPool.setMaxTotal(2);
 	}
 	public static void main(String[] args) {
 		ConsumerApp app = null;
@@ -43,11 +54,15 @@ public class ConsumerApp {
 			app.createTopics();
 			
 			app.run();
+			
+			app.close();
 		} catch (Exception e) {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+			if (app != null) app.close();
+			
 		}
 	}
-	private void run() {
+	private void run() throws Exception {
 		Properties props = new Properties();
 		props.setProperty("bootstrap.servers", config.bootstrapServers);
 		props.setProperty("group.id", config.groupId);
@@ -73,6 +88,7 @@ public class ConsumerApp {
 						ObjectMapper objectMapper = new ObjectMapper();
 						count++;
 						logger.info("   >>>count={}", count);
+						Connection conn = null;
 						try {
 							logger.info("   >>>record.value()={}", record.value());
 							JsonNode jsonNode = objectMapper.readTree(record.value());
@@ -87,6 +103,7 @@ public class ConsumerApp {
 								PolicyHolder policyHolder = objectMapper2.readValue(data, PolicyHolder.class);
 								logger.info("   >>>insert PolicyHolder={}", ToStringBuilder.reflectionToString(policyHolder));
 								
+								conn = connPool.getConnection();
 								//								
 								//								setPreparedStatement(jsonNode, pstmt);
 								//							
@@ -118,7 +135,10 @@ public class ConsumerApp {
 							e.printStackTrace();
 							logger.error(e.getMessage(), e);
 
-						} 
+						} finally {
+							if (conn != null) conn.close();
+						}
+						
 					} 
 					//					if (pstmt != null) pstmt.close();
 					//					
@@ -133,9 +153,9 @@ public class ConsumerApp {
 
 			}
 		} catch (Exception e) {
-			logger.error("Consumer error", e);
+			throw new Exception(e.getMessage(), e);
 		} catch (Throwable e) {
-			logger.error("Consumer error", e);
+			throw new Exception(e.getMessage(), e);
 		} finally {
 			try {
 				consumer.commitSync(); 
@@ -165,8 +185,13 @@ public class ConsumerApp {
 				admin.createTopics(Collections.singleton(newTopic));
 				logger.info(">>> topic={} created", topic);
 			}
+		}	
+	}
+	private void close() {
+		try {
+			if (connPool != null) connPool.close();
+		} catch (Exception e) {
+			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 		}
-
-		
 	}
 }
