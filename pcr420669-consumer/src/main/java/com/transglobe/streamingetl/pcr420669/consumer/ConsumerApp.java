@@ -86,23 +86,32 @@ public class ConsumerApp {
 					for (ConsumerRecord<String, String> record : records) {
 						logger.info(">>>Topic: {}, Partition: {}, Offset: {}, key: {}, value: {}", record.topic(), record.partition(), record.offset(), record.key(), record.value());
 						ObjectMapper objectMapper = new ObjectMapper();
+						JsonNode jsonNode = objectMapper.readTree(record.value());
+						JsonNode payload = jsonNode.get("payload");
 						count++;
 						logger.info("   >>>count={}", count);
 						Connection conn = null;
 						try {
 							logger.info("   >>>record.value()={}", record.value());
-							JsonNode jsonNode = objectMapper.readTree(record.value());
-							String tableName = jsonNode.get("payload").get("TABLE_NAME").asText();//"T_POLICY_HOLDER"							
-							String operation = jsonNode.get("payload").get("OPERATION").asText();
+							String tableName = payload.get("TABLE_NAME").asText();//"T_POLICY_HOLDER"							
+							String operation = payload.get("OPERATION").asText();
 							
 							logger.info("   >>>tableName={}, operation={}", tableName, operation);
 							
 							if ("INSERT".equals(operation)) {
-								String data = jsonNode.get("payload").get("data").toString();
-								ObjectMapper objectMapper2 = new ObjectMapper();
-								PolicyHolder policyHolder = objectMapper2.readValue(data, PolicyHolder.class);
+								String data = payload.get("data").toString();
+								objectMapper = new ObjectMapper();
+								PolicyHolder policyHolder = objectMapper.readValue(data, PolicyHolder.class);
 								logger.info("   >>>insert PolicyHolder={}", ToStringBuilder.reflectionToString(policyHolder));
-								
+								logger.info("   >>>insert PolicyHolder, listid={},policyid={},name={},certicode={},mobiletel={},email={},addressid={}",
+										policyHolder.getListId()
+										, policyHolder.getPolicyId()
+										, policyHolder.getName()
+										, policyHolder.getCertiCode()
+										, policyHolder.getMobileTel()
+										, policyHolder.getEmail()
+										, policyHolder.getAddressId());
+										
 								conn = connPool.getConnection();
 								//								
 								//								setPreparedStatement(jsonNode, pstmt);
@@ -116,18 +125,38 @@ public class ConsumerApp {
 								//								}
 							} else if ("UPDATE".equals(operation)) {
 								//								String updateSql = getUpdateSql(jsonNode, sinkFullTableName);
-								String sinkSqlRedo = jsonNode.get("payload").get("SINK_SQL_REDO").asText();
-								logger.info("   >>>update,sink redoStr={}", sinkSqlRedo);
-								//								
-								//								pstmt2 = conn.prepareStatement(sinkSqlRedo);
-								//								pstmt2.executeBatch();
+								String data = payload.get("data").toString();
+								String before = payload.get("before").toString();
+								PolicyHolder dataPolicyHolder = objectMapper.readValue(data, PolicyHolder.class);
+								PolicyHolder beforePolicyHolder = objectMapper.readValue(before, PolicyHolder.class);
+								logger.info("   >>>update dataPolicyHolder, listid={},policyid={},name={},certicode={},mobiletel={},email={},addressid={}",
+										dataPolicyHolder.getListId()
+										, dataPolicyHolder.getPolicyId()
+										, dataPolicyHolder.getName()
+										, dataPolicyHolder.getCertiCode()
+										, dataPolicyHolder.getMobileTel()
+										, dataPolicyHolder.getEmail()
+										, dataPolicyHolder.getAddressId());
+								logger.info("   >>>update beforePolicyHolder, listid={},policyid={},name={},certicode={},mobiletel={},email={},addressid={}",
+										beforePolicyHolder.getListId()
+										, beforePolicyHolder.getPolicyId()
+										, beforePolicyHolder.getName()
+										, beforePolicyHolder.getCertiCode()
+										, beforePolicyHolder.getMobileTel()
+										, beforePolicyHolder.getEmail()
+										, beforePolicyHolder.getAddressId());
 
 							} else if ("DELETE".equals(operation)) {
-								String before = jsonNode.get("payload").get("before").toString();
-								ObjectMapper objectMapper2 = new ObjectMapper();
-								PolicyHolder policyHolder = objectMapper2.readValue(before, PolicyHolder.class);
-								logger.info("   >>> delete PolicyHolder={}", ToStringBuilder.reflectionToString(policyHolder));
-								
+								String before = payload.get("before").toString();
+								PolicyHolder beforePolicyHolder = objectMapper.readValue(before, PolicyHolder.class);
+								logger.info("   >>>delete beforePolicyHolder, listid={},policyid={},name={},certicode={},mobiletel={},email={},addressid={}",
+										beforePolicyHolder.getListId()
+										, beforePolicyHolder.getPolicyId()
+										, beforePolicyHolder.getName()
+										, beforePolicyHolder.getCertiCode()
+										, beforePolicyHolder.getMobileTel()
+										, beforePolicyHolder.getEmail()
+										, beforePolicyHolder.getAddressId());
 							}
 
 						} catch (Exception e) {
