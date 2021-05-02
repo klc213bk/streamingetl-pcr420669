@@ -376,7 +376,7 @@ public class InitialLoadApp {
 		try {
 			stmt = conn.createStatement();
 			stmt.executeUpdate("DROP TABLE " + sinkTableName);
-		} catch (java.sql.SQLSyntaxErrorException e) {
+		} catch (java.sql.SQLException e) {
 			logger.info(">>> err mesg={}, continue to create table", e.getMessage());
 
 		}
