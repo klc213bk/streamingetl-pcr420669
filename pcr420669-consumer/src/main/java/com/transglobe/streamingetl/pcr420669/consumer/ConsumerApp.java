@@ -8,15 +8,18 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -31,7 +34,9 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.transglobe.streamingetl.pcr420669.consumer.model.Address;
+import com.transglobe.streamingetl.pcr420669.consumer.model.ContractBene;
 import com.transglobe.streamingetl.pcr420669.consumer.model.InsuredList;
+import com.transglobe.streamingetl.pcr420669.consumer.model.PartyContact;
 import com.transglobe.streamingetl.pcr420669.consumer.model.PolicyHolder;
 
 
@@ -51,7 +56,7 @@ public class ConsumerApp {
 	private static final Integer INSURED_LIST_ROLE_TYPE = 2;
 	private static final Integer CONTRACT_BENE_ROLE_TYPE = 3;
 	private static final Integer ADDRESS_ROLE_TYPE = 0;
-	
+
 	private Config config;
 
 	private BasicDataSource connPool;
@@ -74,7 +79,7 @@ public class ConsumerApp {
 			app.createTopics();
 
 			app.createTable();
-			
+
 			app.run();
 
 			app.close();
@@ -124,31 +129,11 @@ public class ConsumerApp {
 								doInsert(objectMapper, payload);
 
 							} else if ("UPDATE".equals(operation)) {
-								//								String updateSql = getUpdateSql(jsonNode, sinkFullTableName);
-								String data = payload.get("data").toString();
-								String before = payload.get("before").toString();
-								PolicyHolder dataPolicyHolder = objectMapper.readValue(data, PolicyHolder.class);
-								PolicyHolder beforePolicyHolder = objectMapper.readValue(before, PolicyHolder.class);
-								logger.info("   >>>update dataPolicyHolder, listid={},policyid={},name={},certicode={},mobiletel={},email={},addressid={}",
-										dataPolicyHolder.getListId()
-										, dataPolicyHolder.getPolicyId()
-										, dataPolicyHolder.getName()
-										, dataPolicyHolder.getCertiCode()
-										, dataPolicyHolder.getMobileTel()
-										, dataPolicyHolder.getEmail()
-										, dataPolicyHolder.getAddressId());
-								logger.info("   >>>update beforePolicyHolder, listid={},policyid={},name={},certicode={},mobiletel={},email={},addressid={}",
-										beforePolicyHolder.getListId()
-										, beforePolicyHolder.getPolicyId()
-										, beforePolicyHolder.getName()
-										, beforePolicyHolder.getCertiCode()
-										, beforePolicyHolder.getMobileTel()
-										, beforePolicyHolder.getEmail()
-										, beforePolicyHolder.getAddressId());
+								doUpdate(objectMapper, payload);
 
 							} else if ("DELETE".equals(operation)) {
 								doDelete(objectMapper, payload);
-								
+
 							}
 
 						} catch (Exception e) {
@@ -238,7 +223,7 @@ public class ConsumerApp {
 			if (count == 0) {
 				// insert into party_contact
 				sql = "insert into " + PARTY_CONTACT_TABLE_NAME + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID) " 
-								+ " values (?,?,?,?,?,?,?,?)";
+						+ " values (?,?,?,?,?,?,?,?)";
 				pstmt = conn.prepareStatement(sql);
 				pstmt.setInt(1, POLICY_HOLDER_ROLE_TYPE);
 				pstmt.setLong(2, policyHolder.getListId());
@@ -278,7 +263,7 @@ public class ConsumerApp {
 			if (count == 0) {
 				// insert into party_contact
 				sql = "insert into " + PARTY_CONTACT_TABLE_NAME + " (ROLE_TYPE,LIST_ID,ADDRESS_ID) " 
-								+ " values (?,?,?)";
+						+ " values (?,?,?)";
 				pstmt = conn.prepareStatement(sql);
 				pstmt.setInt(1, 0);
 				pstmt.setLong(2, address.getAddressId());
@@ -309,15 +294,19 @@ public class ConsumerApp {
 			listId = policyHolder.getListId();
 		} else if (INSURED_LIST_TABLE_NAME.equals(tableName)) {
 			InsuredList insuredList = objectMapper.readValue(before, InsuredList.class);
-			roleType = POLICY_HOLDER_ROLE_TYPE;
+			roleType = INSURED_LIST_ROLE_TYPE;
 			listId = insuredList.getListId();
-		}  else if (ADDRESS_TABLE_NAME.equals(tableName)) {
+		} else if (CONTRACT_BENE_TABLE_NAME.equals(tableName)) {
+			ContractBene contractBene = objectMapper.readValue(before, ContractBene.class);
+			roleType = CONTRACT_BENE_ROLE_TYPE;
+			listId = contractBene.getListId();
+		} else if (ADDRESS_TABLE_NAME.equals(tableName)) {
 			Address address = objectMapper.readValue(before, Address.class);
 			roleType = ADDRESS_ROLE_TYPE;
 			listId = address.getAddressId();
 		}
-		logger.info(">>> droleType={},listId={}", roleType, listId);
-		
+		logger.info(">>> roleType={},listId={}", roleType, listId);
+
 		sql = "select count(*) AS COUNT from " + PARTY_CONTACT_TABLE_NAME + " where role_type = ? and list_id = ?";
 		PreparedStatement pstmt = conn.prepareStatement(sql);
 		pstmt.setInt(1, roleType);
@@ -330,13 +319,13 @@ public class ConsumerApp {
 		logger.info(">>> count={}", count);
 		resultSet.close();
 		pstmt.close();
-		
+
 		if (count > 0) {
 			sql = "delete " + PARTY_CONTACT_TABLE_NAME + " where role_type = ? and list_id = ?"; 
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setInt(1, roleType);
 			pstmt.setLong(2, listId);
-			
+
 			pstmt.executeUpdate();
 		} else {
 			// record exists, error
@@ -344,13 +333,123 @@ public class ConsumerApp {
 			throw new Exception(error);
 		}
 		pstmt.close();
-		
+
 		conn.close();
+	}
+	private void doUpdate(ObjectMapper objectMapper, JsonNode payload) throws Exception {
+		String tableName = payload.get("TABLE_NAME").asText();
+		logger.info(">>> update tableName={}", tableName);
+		String data = payload.get("data").toString();
+		String before = payload.get("before").toString();
+		Connection conn = connPool.getConnection();
+		String sql = "";
+		PartyContact oldpartyContact = objectMapper.readValue(before, PartyContact.class);
+		PartyContact newpartyContact = objectMapper.readValue(data, PartyContact.class);
+
+		if (POLICY_HOLDER_TABLE_NAME.equals(tableName)) {
+			oldpartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
+			newpartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
+		} else if (INSURED_LIST_TABLE_NAME.equals(tableName)) {
+			oldpartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
+			newpartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
+		} else if (CONTRACT_BENE_TABLE_NAME.equals(tableName)) {
+			oldpartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
+			newpartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
+		} else if (ADDRESS_TABLE_NAME.equals(tableName)) {
+			oldpartyContact.setRoleType(ADDRESS_ROLE_TYPE);
+			newpartyContact.setRoleType(ADDRESS_ROLE_TYPE);
+			oldpartyContact.setListId(oldpartyContact.getAddressId());
+			newpartyContact.setListId(newpartyContact.getAddressId());
+		}
+		logger.info(">>> oldpartyContact={}", oldpartyContact);
+		logger.info(">>> newpartyContact={}", newpartyContact);
+
+		if (ADDRESS_TABLE_NAME.equals(tableName)) {
+			sql = "select count(*) AS COUNT from " + PARTY_CONTACT_TABLE_NAME 
+					+ " where address_id = " + oldpartyContact.getAddressId();
+		} else {
+			sql = "select count(*) AS COUNT from " + PARTY_CONTACT_TABLE_NAME 
+					+ " where role_type = " + oldpartyContact.getRoleType() + " and list_id = " + oldpartyContact.getListId();
+		}
+		PreparedStatement pstmt = conn.prepareStatement(sql);
+		ResultSet resultSet = pstmt.executeQuery();
+		Integer count = 0; 
+		while (resultSet.next()) {
+			count = resultSet.getInt("COUNT");
+		}
+		logger.info(">>> count={}", count);
+		resultSet.close();
+		pstmt.close();
+
+		if (count > 0) {
+			if (ADDRESS_TABLE_NAME.equals(tableName)) {
+				StringBuilder sb = new StringBuilder();
+				if (!Objects.equals(oldpartyContact.getAddress1(), newpartyContact.getAddress1())) {
+					sb.append(",ADDRESS_1='" + newpartyContact.getAddress1()+"'");
+				}
+				if (StringUtils.isNotBlank(sb.toString())) {
+					sql = "update " + PARTY_CONTACT_TABLE_NAME 
+							+ " set " + sb.toString().substring(1) 
+							+ " where address_id = ?";
+					logger.info(">>> update from address, sql={}", sql);
+					
+					pstmt = conn.prepareStatement(sql);
+					pstmt.setLong(1, newpartyContact.getListId());
+					
+					pstmt.executeUpdate();
+					pstmt.close();
+					
+					
+				}
+			} else {
+				StringBuilder sb = new StringBuilder();
+				if (!Objects.equals(oldpartyContact.getPolicyId(), newpartyContact.getPolicyId())) {
+					sb.append(",POLICY_ID=" + newpartyContact.getPolicyId());
+				}
+				if (!Objects.equals(oldpartyContact.getName(), newpartyContact.getName())) {
+					sb.append(",NAME='" + newpartyContact.getName()+"'");
+				}
+				if (!Objects.equals(oldpartyContact.getCertiCode(), newpartyContact.getCertiCode())) {
+					sb.append(",CERTI_CODE='" + newpartyContact.getCertiCode()+"'");
+				}
+				if (!Objects.equals(oldpartyContact.getMobileTel(), newpartyContact.getMobileTel())) {
+					sb.append(",MOBILE_TEL='" + newpartyContact.getMobileTel()+"'");
+				}
+				if (!Objects.equals(oldpartyContact.getEmail(), newpartyContact.getEmail())) {
+					sb.append(",EMAIL='" + newpartyContact.getEmail()+"'");
+				}
+				if (!Objects.equals(oldpartyContact.getAddressId(), newpartyContact.getAddressId())) {
+					sb.append(",ADDRESS_ID=" + newpartyContact.getAddressId());
+				}
+				if (StringUtils.isNotBlank(sb.toString())) {
+					pstmt.close();
+					sql = "update " + PARTY_CONTACT_TABLE_NAME 
+							+ " set " + sb.toString().substring(1) 
+							+ " where role_type = ? and list_id = ?";
+					logger.info(">>> update from party, sql={}", sql);
+					
+					pstmt = conn.prepareStatement(sql);
+					pstmt.setInt(1, newpartyContact.getRoleType());
+					pstmt.setLong(2, newpartyContact.getListId());
+					
+					pstmt.executeUpdate();
+					
+					pstmt.close();
+				}
+			}
+		} else {
+			// record exists, error
+			String error = String.format("table=%s record does not exist, role_type=%d, list_id=%d", PARTY_CONTACT_TABLE_NAME, oldpartyContact.getRoleType(), oldpartyContact.getListId());
+			throw new Exception(error);
+		}
+
+		conn.close();
+
 	}
 	private void createTable() throws Exception {
 
 		Connection conn = connPool.getConnection();
-		
+
 		boolean createTable = false;
 		Statement stmt = null;
 		try {
@@ -367,7 +466,7 @@ public class ConsumerApp {
 
 		}
 		stmt.close();
-		
+
 		if (createTable) {
 			ClassLoader loader = Thread.currentThread().getContextClassLoader();	
 			try (InputStream inputStream = loader.getResourceAsStream("createtable-T_PARTY_CONTACT.sql")) {
@@ -379,7 +478,7 @@ public class ConsumerApp {
 				throw e;
 			}
 		}
-		
+
 		conn.close();
 
 	}

@@ -1,23 +1,33 @@
 package com.transglobe.streamingetl.pcr420669.consumer.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class PartyContact {
 
 	private Integer roleType;
 	
+	@JsonProperty("LIST_ID")
 	private Long listId;
 	
+	@JsonProperty("POLICY_ID")
 	private Long policyId;
 	
+	@JsonProperty("NAME")
 	private String name;
 	
+	@JsonProperty("CERTI_CODE")
 	private String certiCode;
 	
+	@JsonProperty("MOBILE_TEL")
 	private String mobileTel;
 	
+	@JsonProperty("EMAIL")
 	private String email;
 	
+	@JsonProperty("ADDRESS_ID")
 	private Long addressId;
 	
+	@JsonProperty("ADDRESS_1")
 	private String address1;
 
 	public Integer getRoleType() {
