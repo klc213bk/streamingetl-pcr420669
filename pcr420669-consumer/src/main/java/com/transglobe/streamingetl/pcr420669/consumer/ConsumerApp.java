@@ -204,81 +204,88 @@ public class ConsumerApp {
 		String tableName = payload.get("TABLE_NAME").asText();
 		logger.info(">>> tableName={}", tableName);
 		String data = payload.get("data").toString();
-		Connection conn = connPool.getConnection();
+
+		PartyContact partyContact = objectMapper.readValue(data, PartyContact.class);
 		String sql = "";
 		if (POLICY_HOLDER_TABLE_NAME.equals(tableName)) {
-			PolicyHolder policyHolder = objectMapper.readValue(data, PolicyHolder.class);
-			sql = "select count(*) AS COUNT from " + PARTY_CONTACT_TABLE_NAME + " where role_type = ? and list_id = ?";
-			PreparedStatement pstmt = conn.prepareStatement(sql);
-			pstmt.setInt(1, POLICY_HOLDER_ROLE_TYPE);
-			pstmt.setLong(2, policyHolder.getListId());
-			ResultSet resultSet = pstmt.executeQuery();
-			Integer count = 0; 
-			while (resultSet.next()) {
-				count = resultSet.getInt("COUNT");
-			}
-			resultSet.close();
-			pstmt.close();
-
-			if (count == 0) {
-				// insert into party_contact
-				sql = "insert into " + PARTY_CONTACT_TABLE_NAME + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID) " 
-						+ " values (?,?,?,?,?,?,?,?)";
-				pstmt = conn.prepareStatement(sql);
-				pstmt.setInt(1, POLICY_HOLDER_ROLE_TYPE);
-				pstmt.setLong(2, policyHolder.getListId());
-				pstmt.setLong(3, policyHolder.getPolicyId());
-				pstmt.setString(4, policyHolder.getName());
-				pstmt.setString(5, policyHolder.getCertiCode());
-				pstmt.setString(6, policyHolder.getMobileTel());
-				pstmt.setString(7, policyHolder.getEmail());
-				pstmt.setLong(8, policyHolder.getAddressId());
-
-				pstmt.executeUpdate();
-
-				pstmt.close();
-			} else {
-				// record exists, error
-				String error = String.format("table=%s record already exists, role_type=%d, list_id=%d", PARTY_CONTACT_TABLE_NAME, POLICY_HOLDER_ROLE_TYPE, policyHolder.getListId());
-				throw new Exception(error);
-			}
-
+			partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
 		} else if (INSURED_LIST_TABLE_NAME.equals(tableName)) {
-
+			partyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
 		} else if (CONTRACT_BENE_TABLE_NAME.equals(tableName)) {
-
+			partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 		} else if (ADDRESS_TABLE_NAME.equals(tableName)) {
-			Address address = objectMapper.readValue(data, Address.class);
-			sql = "select count(*) AS COUNT from " + PARTY_CONTACT_TABLE_NAME + " where address_id = ?";
-			PreparedStatement pstmt = conn.prepareStatement(sql);
-			pstmt.setLong(1, address.getAddressId());
+			partyContact.setRoleType(ADDRESS_ROLE_TYPE);
+			partyContact.setListId(partyContact.getAddressId());
+		}
+		logger.info(">>> partyContact={}", partyContact);
+
+		PreparedStatement pstmt = null;
+		if (ADDRESS_TABLE_NAME.equals(tableName)) {
+			Connection conn = connPool.getConnection();
+			sql = "select ROLE_TYPE,LIST_ID from " + PARTY_CONTACT_TABLE_NAME + " where address_id = ?";
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setLong(1, partyContact.getAddressId());
 			ResultSet resultSet = pstmt.executeQuery();
-			Integer count = 0; 
+			int count = 0;
 			while (resultSet.next()) {
-				count = resultSet.getInt("COUNT");
+				count++;
+				Integer roleType = resultSet.getInt("ROLE_TYPE");
+				Long listId = resultSet.getLong("LIST_ID");
+				sql = "update " + PARTY_CONTACT_TABLE_NAME + " set ADDRESS_1 = ? where address_id = ?";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setString(1, partyContact.getAddress1());
+				pstmt.setLong(2, partyContact.getAddressId());
+				pstmt.executeUpdate();
+				
+				logger.info(">>> address exists, update sql={} ", sql);
+				
 			}
 			resultSet.close();
-			pstmt.close();
-
+			
 			if (count == 0) {
-				// insert into party_contact
-				sql = "insert into " + PARTY_CONTACT_TABLE_NAME + " (ROLE_TYPE,LIST_ID,ADDRESS_ID) " 
-						+ " values (?,?,?)";
+				// insert 
+				sql = "insert into " + PARTY_CONTACT_TABLE_NAME + " (ROLE_TYPE,LIST_ID,ADDRESS_ID,ADDRESS_1)" + " values (?,?,?,?)";
 				pstmt = conn.prepareStatement(sql);
-				pstmt.setInt(1, 0);
-				pstmt.setLong(2, address.getAddressId());
-				pstmt.setLong(3, address.getAddressId());
-
+				pstmt.setInt(1, partyContact.getRoleType());
+				pstmt.setLong(2, partyContact.getAddressId());
+				pstmt.setLong(3, partyContact.getAddressId());
+				pstmt.setString(4, partyContact.getAddress1());
 				pstmt.executeUpdate();
-
+				
+				logger.info(">>> no address exists, insert sql={} ", sql);
+			}
+			pstmt.close();
+			conn.close();
+			
+		} else {
+			sql = "select count(*) AS COUNT from " + PARTY_CONTACT_TABLE_NAME 
+					+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
+			int count = getCount(sql);
+			if (count == 0) {
+				Connection conn = connPool.getConnection();
+				sql = "insert into " + PARTY_CONTACT_TABLE_NAME + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+						+ " values (?,?,?,?,?,?,?,?,?)";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setInt(1, partyContact.getRoleType());
+				pstmt.setLong(2, partyContact.getListId());
+				pstmt.setLong(3, partyContact.getPolicyId());
+				pstmt.setString(4, partyContact.getName());
+				pstmt.setString(5, partyContact.getCertiCode());
+				pstmt.setString(6, partyContact.getMobileTel());
+				pstmt.setString(7, partyContact.getEmail());
+				pstmt.setLong(8, partyContact.getAddressId());
+				pstmt.setString(9, partyContact.getAddress1());
+				
+				pstmt.executeUpdate();
 				pstmt.close();
+				conn.close();
 			} else {
 				// record exists, error
-				String error = String.format("table=%s record already exists, address_id=%d", PARTY_CONTACT_TABLE_NAME, POLICY_HOLDER_ROLE_TYPE, address.getAddressId());
+				String error = String.format("table=%s record already exists, role_type=%d, list_id=%d", PARTY_CONTACT_TABLE_NAME, partyContact.getRoleType(), partyContact.getListId());
 				throw new Exception(error);
 			}
+			
 		}
-
 	}
 	private void doDelete(ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String tableName = payload.get("TABLE_NAME").asText();
@@ -481,6 +488,23 @@ public class ConsumerApp {
 
 		conn.close();
 
+	}
+	
+	private Integer getCount(String sql) throws SQLException {
+		Connection conn = connPool.getConnection();
+		PreparedStatement pstmt = conn.prepareStatement(sql);
+		ResultSet resultSet = pstmt.executeQuery();
+		Integer count = 0; 
+		while (resultSet.next()) {
+			count = resultSet.getInt("COUNT");
+		}
+		logger.info(">>> count={}", count);
+		resultSet.close();
+		pstmt.close();
+		
+		conn.close();
+		
+		return count;
 	}
 
 }
