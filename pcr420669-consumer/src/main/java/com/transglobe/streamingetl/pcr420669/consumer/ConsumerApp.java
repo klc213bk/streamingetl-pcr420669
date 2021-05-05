@@ -62,6 +62,7 @@ public class ConsumerApp {
 	private BasicDataSource connPool;
 
 	public ConsumerApp(String fileName) throws Exception {
+		logger.info(">>>>>config fileName={}", fileName);
 		config = Config.getConfig(fileName);
 
 		connPool = new BasicDataSource();
@@ -72,9 +73,14 @@ public class ConsumerApp {
 		connPool.setMaxTotal(2);
 	}
 	public static void main(String[] args) {
+		
+		String profileActive = System.getProperty("profile.active", "");
+		logger.info(">>>>>profileActive={}", profileActive);
+		
 		ConsumerApp app = null;
 		try {
-			app = new ConsumerApp(CONFIG_FILE_NAME);
+			String confileFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
+			app = new ConsumerApp(confileFile);
 
 			app.createTopics();
 
