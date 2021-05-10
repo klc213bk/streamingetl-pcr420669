@@ -15,6 +15,12 @@ public class Config {
 	public String sourceTableInsuredList;
 	public String sourceTableContractBene;
 	public String sourceTableAddress;
+	
+	public String sourceDbDriver;
+	public String sourceDbUrl;
+	public String sourceDbUsername;
+	public String sourceDbPassword;
+	
 	public String sinkDbDriver;
 	public String sinkDbUrl;
 	public String sinkDbUsername;
@@ -41,17 +47,14 @@ public class Config {
 			config.sourceTableContractBene = prop.getProperty("source.table.contract_bene");
 			config.sourceTableAddress = prop.getProperty("source.table.address");
 
+			config.sourceDbDriver = prop.getProperty("source.db.driver");
+			config.sourceDbUrl = prop.getProperty("source.db.url");
+			config.sourceDbUsername = prop.getProperty("source.db.username");
+			config.sourceDbPassword = prop.getProperty("source.db.password");
+			
 			config.sinkDbDriver = prop.getProperty("sink.db.driver");
 			config.sinkDbUrl = prop.getProperty("sink.db.url");
-			config.sinkDbUsername = prop.getProperty("sink.db.username");
-			config.sinkDbPassword = prop.getProperty("sink.db.password");
 			config.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
-			
-			config.bootstrapServers = prop.getProperty("bootstrap.servers");
-			config.groupId = prop.getProperty("group.id");
-			String[] topicArr = prop.getProperty("topics").split(",");
-			config.topicList = Arrays.asList(topicArr);
-			config.runResultFile = prop.getProperty("run.result.file");
 			
 			return config;
 		} catch (Exception e) {

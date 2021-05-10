@@ -215,26 +215,26 @@ public class ConsumerApp {
 		}
 	}
 	private void doInsert(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
-		String tableName = payload.get("TABLE_NAME").asText();
-		logger.info(">>> tableName={}", tableName);
+		String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
+		logger.info(">>> fulltableName={}", fullTableName);
 		String data = payload.get("data").toString();
 
 		PartyContact partyContact = objectMapper.readValue(data, PartyContact.class);
 		String sql = "";
-		if (config.sourceTablePolicyHolder.equals(tableName)) {
+		if (config.sourceTablePolicyHolder.equals(fullTableName)) {
 			partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
-		} else if (config.sourceTableInsuredList.equals(tableName)) {
+		} else if (config.sourceTableInsuredList.equals(fullTableName)) {
 			partyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
-		} else if (config.sourceTableContractBene.equals(tableName)) {
+		} else if (config.sourceTableContractBene.equals(fullTableName)) {
 			partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
-		} else if (config.sourceTableAddress.equals(tableName)) {
+		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			partyContact.setRoleType(ADDRESS_ROLE_TYPE);
 			partyContact.setListId(partyContact.getAddressId());
 		}
 		logger.info(">>> partyContact={}", partyContact);
 
 		PreparedStatement pstmt = null;
-		if (config.sourceTableAddress.equals(tableName)) {
+		if (config.sourceTableAddress.equals(fullTableName)) {
 			sql = "select ROLE_TYPE,LIST_ID from " + config.sinkTablePartyContact + " where address_id = ?";
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setLong(1, partyContact.getAddressId());
@@ -352,24 +352,24 @@ public class ConsumerApp {
 
 	}
 	private void doUpdate(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
-		String tableName = payload.get("TABLE_NAME").asText();
-		logger.info(">>> update tableName={}", tableName);
+		String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
+		logger.info(">>> fulltableName={}", fullTableName);
 		String data = payload.get("data").toString();
 		String before = payload.get("before").toString();
 		String sql = "";
 		PartyContact oldpartyContact = objectMapper.readValue(before, PartyContact.class);
 		PartyContact newpartyContact = objectMapper.readValue(data, PartyContact.class);
 
-		if (config.sourceTablePolicyHolder.equals(tableName)) {
+		if (config.sourceTablePolicyHolder.equals(fullTableName)) {
 			oldpartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
 			newpartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
-		} else if (config.sourceTableInsuredList.equals(tableName)) {
+		} else if (config.sourceTableInsuredList.equals(fullTableName)) {
 			oldpartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
 			newpartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
-		} else if (config.sourceTableContractBene.equals(tableName)) {
+		} else if (config.sourceTableContractBene.equals(fullTableName)) {
 			oldpartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 			newpartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
-		} else if (config.sourceTableAddress.equals(tableName)) {
+		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			oldpartyContact.setRoleType(ADDRESS_ROLE_TYPE);
 			newpartyContact.setRoleType(ADDRESS_ROLE_TYPE);
 			oldpartyContact.setListId(oldpartyContact.getAddressId());
@@ -378,7 +378,7 @@ public class ConsumerApp {
 		logger.info(">>> oldpartyContact={}", oldpartyContact);
 		logger.info(">>> newpartyContact={}", newpartyContact);
 
-		if (config.sourceTableAddress.equals(tableName)) {
+		if (config.sourceTableAddress.equals(fullTableName)) {
 			sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
 					+ " where address_id = " + oldpartyContact.getAddressId();
 		} else {
@@ -396,7 +396,7 @@ public class ConsumerApp {
 		pstmt.close();
 
 		if (count > 0) {
-			if (config.sourceTableAddress.equals(tableName)) {
+			if (config.sourceTableAddress.equals(fullTableName)) {
 				StringBuilder sb = new StringBuilder();
 				if (!Objects.equals(oldpartyContact.getAddress1(), newpartyContact.getAddress1())) {
 					sb.append(",ADDRESS_1='" + newpartyContact.getAddress1()+"'");
