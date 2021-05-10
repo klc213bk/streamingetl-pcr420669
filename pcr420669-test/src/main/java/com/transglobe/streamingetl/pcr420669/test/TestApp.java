@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Random;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +33,7 @@ public class TestApp {
 	private static String CONTRACT_BENE_SRC = "TEST_T_CONTRACT_BENE1";
 	
 	
-	private static final String CONFIG_FILE_NAME = "config.properties";
+	private static final String CONFIG_FILE_NAME = "config.dev2.properties";
 	
 	Config config;
 	
@@ -85,18 +86,38 @@ public class TestApp {
 			}
 			rs.close();
 			pstmt.close();
-					
+			
 			Random random = new Random(System.currentTimeMillis());
 			int offset  = random.nextInt(count);
 			
 			logger.info(">>count={}, offset={}", count, offset);
 			
-			sql = "insert into test_t_policy_holder " 
-					+ "(select * from test_t_policy_holder1 " 
+			//for before 12c 
+			sql = "insert into " + config.sourceTablePolicyHolder 	
+				+ "( select * from " + POLICY_HOLDER_SRC + "\n"
+				+ " where list_id in \n"
+				+ " ("	
+				+ " select list_id "
+				+ "	  from (select rownum bRn "
+				+ "	             , b.* "
+				+ "	          from (select rownum aRn "
+				+ "	                     , a.* "
+				+ "	                  from " + POLICY_HOLDER_SRC + " a "
+				+ "	                 order by a.name "
+				+ "	               ) b "
+				+ "	       ) "
+				+ "	 where bRn between " + offset + " and "  + offset
+				+ "))";
+			
+			//for after 12c 
+			/*		
+			sql = "insert into " + config.sourceTablePolicyHolder 
+					+ " (select * from " + POLICY_HOLDER_SRC 
 					+ " order by list_id "
 					+ " offset " + offset  + " rows "
 					+ " fetch next 1 row only "
 					+ ")";
+					*/
 			pstmt = sourceConn.prepareStatement(sql);
 			pstmt.executeUpdate();
 			
@@ -106,13 +127,6 @@ public class TestApp {
 			sql = "select * from test_t_policy_holder";
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery(sql);
-			Long listId = null;
-			Long policyId = null;
-			String name;
-			String certiCode;
-			String mobileTel;
-			String email;
-			Long addressId;
 			int i = 0;
 			PartyContact partyContact = new PartyContact();
 			while (rs.next()) {
@@ -133,7 +147,7 @@ public class TestApp {
 			if (i != 1) {
 				throw new Exception(">>>>> testInsert1PolicyHolder error, wrong data row count");
 			}
-			logger.info(">>>>> TEST testInsert1PolicyHolder - 1     [ OK ]");
+			logger.info(">>>>> TEST testInsert1PolicyHolder, insert 1 record:{}", ToStringBuilder.reflectionToString(partyContact));
 			
 			// check spring boot result
 			ObjectMapper mapper = new ObjectMapper();
@@ -153,7 +167,7 @@ public class TestApp {
 				logger.error(">>>>> testInsert1PolicyHolder error, partyContact not equal!!! partyContact={}, partyContactRes={}", partyContact, contactRes );
 				throw new Exception("testInsert1PolicyHolder error, partyContact not equal!!!");
 			}
-			logger.info(">>>>> TEST testInsert1PolicyHolder - 2     [ OK ]");
+			logger.info(">>>>> TEST testInsert1PolicyHolder     [ OK ]");
 			
 		} catch (Exception e) {
 			throw e;
