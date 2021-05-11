@@ -50,7 +50,6 @@ public class ConsumerApp {
 	static final Logger logger = LoggerFactory.getLogger(ConsumerApp.class);
 
 	private static final String CONFIG_FILE_NAME = "config.properties";
-	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 
 	private static final Integer POLICY_HOLDER_ROLE_TYPE = 1;
 	private static final Integer INSURED_LIST_ROLE_TYPE = 2;
@@ -58,16 +57,13 @@ public class ConsumerApp {
 	private static final Integer ADDRESS_ROLE_TYPE = 0;
 
 	private Config config;
-	
-	private String createTableFile;
 
 	private BasicDataSource connPool;
 
-	public ConsumerApp(String fileName, String createTableScript) throws Exception {
-		logger.info(">>>>>config fileName={}, createTableScript={}", fileName, createTableScript);
+	public ConsumerApp(String fileName) throws Exception {
+		logger.info(">>>>>config fileName={}", fileName);
 		config = Config.getConfig(fileName);
-		this.createTableFile = createTableScript;
-		
+
 		connPool = new BasicDataSource();
 		connPool.setUrl(config.sinkDbUrl);
 		connPool.setUsername(null);
@@ -83,11 +79,8 @@ public class ConsumerApp {
 		ConsumerApp app = null;
 		try {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
-			String createTableFile = StringUtils.isBlank(profileActive)? CREATE_TABLE_FILE_NAME : profileActive + "/" + CREATE_TABLE_FILE_NAME;
 
-			app = new ConsumerApp(configFile, createTableFile);
-
-		//	app.createTopics();
+			app = new ConsumerApp(configFile);
 
 			app.run();
 
@@ -228,74 +221,40 @@ public class ConsumerApp {
 			partyContact.setEmail(null); // 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 
 		} else if (config.sourceTableAddress.equals(fullTableName)) {
-			partyContact.setRoleType(ADDRESS_ROLE_TYPE);
-			partyContact.setListId(partyContact.getAddressId());
+			doInsertAddress(conn);
+			//			partyContact.setRoleType(ADDRESS_ROLE_TYPE);
+			//			partyContact.setListId(partyContact.getAddressId());
 		}
 		logger.info(">>> partyContact={}", partyContact);
 
 		PreparedStatement pstmt = null;
-		if (config.sourceTableAddress.equals(fullTableName)) {
-			sql = "select ROLE_TYPE,LIST_ID from " + config.sinkTablePartyContact + " where address_id = ?";
+
+		sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
+				+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
+		int count = getCount(sql);
+		if (count == 0) {
+			sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+					+ " values (?,?,?,?,?,?,?,?,?)";
 			pstmt = conn.prepareStatement(sql);
-			pstmt.setLong(1, partyContact.getAddressId());
-			ResultSet resultSet = pstmt.executeQuery();
-			int count = 0;
-			while (resultSet.next()) {
-				count++;
-				Integer roleType = resultSet.getInt("ROLE_TYPE");
-				Long listId = resultSet.getLong("LIST_ID");
-				sql = "update " + config.sinkTablePartyContact + " set ADDRESS_1 = ? where address_id = ?";
-				pstmt = conn.prepareStatement(sql);
-				pstmt.setString(1, partyContact.getAddress1());
-				pstmt.setLong(2, partyContact.getAddressId());
-				pstmt.executeUpdate();
+			pstmt.setInt(1, partyContact.getRoleType());
+			pstmt.setLong(2, partyContact.getListId());
+			pstmt.setLong(3, partyContact.getPolicyId());
+			pstmt.setString(4, partyContact.getName());
+			pstmt.setString(5, partyContact.getCertiCode());
+			pstmt.setString(6, partyContact.getMobileTel());
+			pstmt.setString(7, partyContact.getEmail());
+			pstmt.setLong(8, partyContact.getAddressId());
+			pstmt.setString(9, partyContact.getAddress1());
 
-				logger.info(">>> address exists, update sql={} ", sql);
-
-			}
-			resultSet.close();
-
-			if (count == 0) {
-				// insert 
-				sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,ADDRESS_ID,ADDRESS_1)" + " values (?,?,?,?)";
-				pstmt = conn.prepareStatement(sql);
-				pstmt.setInt(1, partyContact.getRoleType());
-				pstmt.setLong(2, partyContact.getAddressId());
-				pstmt.setLong(3, partyContact.getAddressId());
-				pstmt.setString(4, partyContact.getAddress1());
-				pstmt.executeUpdate();
-
-				logger.info(">>> no address exists, insert sql={} ", sql);
-			}
+			pstmt.executeUpdate();
 			pstmt.close();
-
 		} else {
-			sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
-					+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
-			int count = getCount(sql);
-			if (count == 0) {
-				sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
-						+ " values (?,?,?,?,?,?,?,?,?)";
-				pstmt = conn.prepareStatement(sql);
-				pstmt.setInt(1, partyContact.getRoleType());
-				pstmt.setLong(2, partyContact.getListId());
-				pstmt.setLong(3, partyContact.getPolicyId());
-				pstmt.setString(4, partyContact.getName());
-				pstmt.setString(5, partyContact.getCertiCode());
-				pstmt.setString(6, partyContact.getMobileTel());
-				pstmt.setString(7, partyContact.getEmail());
-				pstmt.setLong(8, partyContact.getAddressId());
-				pstmt.setString(9, partyContact.getAddress1());
-
-				pstmt.executeUpdate();
-				pstmt.close();
-			} else {
-				// record exists, error
-				String error = String.format("table=%s record already exists, role_type=%d, list_id=%d", config.sinkTablePartyContact, partyContact.getRoleType(), partyContact.getListId());
-				throw new Exception(error);
-			}
-
+			// record exists, error
+			String error = String.format("table=%s record already exists, role_type=%d, list_id=%d", config.sinkTablePartyContact, partyContact.getRoleType(), partyContact.getListId());
+			throw new Exception(error);
 		}
+
+
 	}
 	private void doDelete(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
@@ -475,5 +434,41 @@ public class ConsumerApp {
 
 		return count;
 	}
-	
-}
+	private void doInsertAddress(Connection conn) {
+
+		String sql = "select ROLE_TYPE,LIST_ID from " + config.sinkTablePartyContact + " where address_id = ?";
+		PreparedStatement pstmt = conn.prepareStatement(sql);
+		pstmt.setLong(1, partyContact.getAddressId());
+		ResultSet resultSet = pstmt.executeQuery();
+		int count = 0;
+		while (resultSet.next()) {
+			count++;
+			Integer roleType = resultSet.getInt("ROLE_TYPE");
+			Long listId = resultSet.getLong("LIST_ID");
+			sql = "update " + config.sinkTablePartyContact + " set ADDRESS_1 = ? where address_id = ?";
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setString(1, partyContact.getAddress1());
+			pstmt.setLong(2, partyContact.getAddressId());
+			pstmt.executeUpdate();
+
+			logger.info(">>> address exists, update sql={} ", sql);
+
+		}
+		resultSet.close();
+
+		if (count == 0) {
+			// insert 
+			sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,ADDRESS_ID,ADDRESS_1)" + " values (?,?,?,?)";
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setInt(1, partyContact.getRoleType());
+			pstmt.setLong(2, partyContact.getAddressId());
+			pstmt.setLong(3, partyContact.getAddressId());
+			pstmt.setString(4, partyContact.getAddress1());
+			pstmt.executeUpdate();
+
+			logger.info(">>> no address exists, insert sql={} ", sql);
+		}
+		pstmt.close();
+
+
+	}
