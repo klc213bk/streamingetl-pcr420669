@@ -59,19 +59,19 @@ public class ConsumerApp {
 
 	private Config config;
 	
-	private String createTableScript;
+	private String createTableFile;
 
 	private BasicDataSource connPool;
 
 	public ConsumerApp(String fileName, String createTableScript) throws Exception {
 		logger.info(">>>>>config fileName={}, createTableScript={}", fileName, createTableScript);
 		config = Config.getConfig(fileName);
-		this.createTableScript = createTableScript;
+		this.createTableFile = createTableScript;
 		
 		connPool = new BasicDataSource();
 		connPool.setUrl(config.sinkDbUrl);
-		connPool.setUsername(config.sinkDbUsername);
-		connPool.setPassword(config.sinkDbPassword);
+		connPool.setUsername(null);
+		connPool.setPassword(null);
 		connPool.setDriverClassName(config.sinkDbDriver);
 		connPool.setMaxTotal(5);
 	}
@@ -83,9 +83,9 @@ public class ConsumerApp {
 		ConsumerApp app = null;
 		try {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
-			String createTableScript = StringUtils.isBlank(profileActive)? CREATE_TABLE_FILE_NAME : profileActive + "/" + CREATE_TABLE_FILE_NAME;
+			String createTableFile = StringUtils.isBlank(profileActive)? CREATE_TABLE_FILE_NAME : profileActive + "/" + CREATE_TABLE_FILE_NAME;
 
-			app = new ConsumerApp(configFile, createTableScript);
+			app = new ConsumerApp(configFile, createTableFile);
 
 			app.createTopics();
 
@@ -227,6 +227,8 @@ public class ConsumerApp {
 			partyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
 		} else if (config.sourceTableContractBene.equals(fullTableName)) {
 			partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
+			partyContact.setEmail(null); // 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
+
 		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			partyContact.setRoleType(ADDRESS_ROLE_TYPE);
 			partyContact.setListId(partyContact.getAddressId());
@@ -480,8 +482,9 @@ public class ConsumerApp {
 		stmt.close();
 
 		if (createTable) {
+			logger.info(">>> create table");
 			ClassLoader loader = Thread.currentThread().getContextClassLoader();	
-			try (InputStream inputStream = loader.getResourceAsStream(createTableScript)) {
+			try (InputStream inputStream = loader.getResourceAsStream(createTableFile)) {
 				String createTableScript = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
 				stmt = conn.createStatement();
 				stmt.executeUpdate(createTableScript);

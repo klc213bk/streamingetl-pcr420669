@@ -19,8 +19,6 @@ public class Config {
 	public String sourceTableAddress;
 	public String sinkDbDriver;
 	public String sinkDbUrl;
-	public String sinkDbUsername;
-	public String sinkDbPassword;
 	public String sinkTablePartyContact;
 
 
@@ -46,8 +44,6 @@ public class Config {
 
 			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");
 			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
-			dbConfig.sinkDbUsername = prop.getProperty("sink.db.username");
-			dbConfig.sinkDbPassword = prop.getProperty("sink.db.password");
 			dbConfig.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 
 			return dbConfig;

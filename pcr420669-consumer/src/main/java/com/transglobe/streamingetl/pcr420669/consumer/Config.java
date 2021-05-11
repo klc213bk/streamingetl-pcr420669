@@ -17,8 +17,8 @@ public class Config {
 	public String sourceTableAddress;
 	public String sinkDbDriver;
 	public String sinkDbUrl;
-	public String sinkDbUsername;
-	public String sinkDbPassword;
+//	public String sinkDbUsername;
+//	public String sinkDbPassword;
 	public String sinkTablePartyContact;
 	public String bootstrapServers;
 	public String groupId;
@@ -43,8 +43,8 @@ public class Config {
 
 			config.sinkDbDriver = prop.getProperty("sink.db.driver");
 			config.sinkDbUrl = prop.getProperty("sink.db.url");
-			config.sinkDbUsername = prop.getProperty("sink.db.username");
-			config.sinkDbPassword = prop.getProperty("sink.db.password");
+//			config.sinkDbUsername = prop.getProperty("sink.db.username");
+//			config.sinkDbPassword = prop.getProperty("sink.db.password");
 			config.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			
 			config.bootstrapServers = prop.getProperty("bootstrap.servers");

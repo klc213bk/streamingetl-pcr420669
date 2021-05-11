@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteAtomicSequence;
@@ -40,6 +41,7 @@ public class InitialLoadApp {
 	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp.class);
 
 	private static final String CONFIG_FILE_NAME = "config.properties";
+	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 
 	private static final int THREADS = 10;
 
@@ -48,6 +50,8 @@ public class InitialLoadApp {
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
 
+	private String createTableFile;
+	
 	static class LoadBean {
 		String fullTableName;
 		Integer roleType;
@@ -56,9 +60,10 @@ public class InitialLoadApp {
 	}
 	private Config config;
 
-	public InitialLoadApp(String fileName) throws Exception {
+	public InitialLoadApp(String fileName, String createTableFile) throws Exception {
 		config = Config.getConfig(fileName);
-
+		this.createTableFile = createTableFile;
+		
 		sourceConnectionPool = new BasicDataSource();
 
 		sourceConnectionPool.setUrl(config.sourceDbUrl);
@@ -69,8 +74,6 @@ public class InitialLoadApp {
 
 		sinkConnectionPool = new BasicDataSource();
 		sinkConnectionPool.setUrl(config.sinkDbUrl);
-		sinkConnectionPool.setUsername(config.sinkDbUsername);
-		sinkConnectionPool.setPassword(config.sinkDbPassword);
 		sinkConnectionPool.setDriverClassName(config.sinkDbDriver);
 		sinkConnectionPool.setMaxTotal(THREADS);
 
@@ -90,11 +93,17 @@ public class InitialLoadApp {
 	public static void main(String[] args) {
 		logger.info(">>> start run InitialLoadApp");
 
-
+		String profileActive = System.getProperty("profile.active", "");
+		logger.info(">>>>>profileActive={}", profileActive);
 		try {
+			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
+			String createTableFile = StringUtils.isBlank(profileActive)? CREATE_TABLE_FILE_NAME : profileActive + "/" + CREATE_TABLE_FILE_NAME;
 
-			InitialLoadApp app = new InitialLoadApp(CONFIG_FILE_NAME);
+			InitialLoadApp app = new InitialLoadApp(configFile, createTableFile);
 
+			// create sink table
+			app.createTable();
+				
 			app.run();
 
 			app.close();
@@ -110,7 +119,7 @@ public class InitialLoadApp {
 
 
 
-	private Map<String, String> loadInterestedPartyContact(String sourceTableName, Integer roleType, Long startSeq, Long endSeq, Long t0){
+	private Map<String, String> loadPartyContact(String sourceTableName, Integer roleType, Long startSeq, Long endSeq, Long t0){
 		//		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
 
 		Map<String, String> map = new HashMap<>();
@@ -237,11 +246,6 @@ public class InitialLoadApp {
 			sourceConn.close();
 			logger.info(">>> max address id={}", maxSeq);
 
-			// create table
-			Connection sinkConn = this.sinkConnectionPool.getConnection();
-			createTable(sinkConn, config.sinkTablePartyContact);
-			sinkConn.close();
-
 			List<String> fullTableNameList = new ArrayList<>();
 			fullTableNameList.add(config.sourceTablePolicyHolder);
 			fullTableNameList.add(config.sourceTableInsuredList);
@@ -275,7 +279,7 @@ public class InitialLoadApp {
 
 				List<CompletableFuture<Map<String, String>>> futures = 
 						loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
-								() -> loadInterestedPartyContact(t.fullTableName, t.roleType, t.startSeq, t.endSeq, t0), executor))
+								() -> loadPartyContact(t.fullTableName, t.roleType, t.startSeq, t.endSeq, t0), executor))
 						.collect(Collectors.toList());			
 
 
@@ -304,11 +308,11 @@ public class InitialLoadApp {
 				//				}
 			}
 
-			sinkConn = this.sinkConnectionPool.getConnection();
+			Connection sinkConn = this.sinkConnectionPool.getConnection();
 			stmt = sinkConn.createStatement();
-			stmt.executeUpdate("CREATE INDEX IDX_INTERESTED_PARTY_CONTACT1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL)");
-			stmt.executeUpdate("CREATE INDEX IDX_INTERESTED_PARTY_CONTACT2 ON " + this.config.sinkTablePartyContact + " (EMAIL)");
-			stmt.executeUpdate("CREATE INDEX IDX_INTERESTED_PARTY_CONTACT3 ON " + this.config.sinkTablePartyContact + " (ADDRESS_ID)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + this.config.sinkTablePartyContact + " (EMAIL)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + this.config.sinkTablePartyContact + " (ADDRESS_ID)");
 			stmt.close();
 			sinkConn.close();
 
@@ -370,27 +374,49 @@ public class InitialLoadApp {
 
 		}
 	}
-	private void createTable(Connection conn, String sinkTableName) throws Exception {
+	
+	private void createTable() throws Exception {
 
+		Connection conn = sinkConnectionPool.getConnection();
+		
+		boolean createTable = false;
 		Statement stmt = null;
 		try {
 			stmt = conn.createStatement();
-			stmt.executeUpdate("DROP TABLE " + sinkTableName);
+
+			stmt.executeQuery("select count(*) from " + config.sinkTablePartyContact);
+
+			// drop table 
+			logger.info(">>> drop table");
+			stmt = conn.createStatement();
+			stmt.executeUpdate("DROP TABLE " + config.sinkTablePartyContact);
+			
+			// create table
+			createTable = true;
 		} catch (java.sql.SQLException e) {
 			logger.info(">>> err mesg={}, continue to create table", e.getMessage());
 
+			// assume sink table does not exists
+			// create table
+			createTable = true;
+
 		}
 		stmt.close();
-		
-		ClassLoader loader = Thread.currentThread().getContextClassLoader();	
-		try (InputStream inputStream = loader.getResourceAsStream("createtable-T_PARTY_CONTACT.sql")) {
-			String createTableScript = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-			stmt = conn.createStatement();
-			stmt.executeUpdate(createTableScript);
-		} catch (SQLException | IOException e) {
-			if (stmt != null) stmt.close();
-			throw e;
+
+		if (createTable) {
+			logger.info(">>> create table");
+			ClassLoader loader = Thread.currentThread().getContextClassLoader();	
+			try (InputStream inputStream = loader.getResourceAsStream(createTableFile)) {
+				String createTableScript = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+				stmt = conn.createStatement();
+				stmt.executeUpdate(createTableScript);
+			} catch (SQLException | IOException e) {
+				if (stmt != null) stmt.close();
+				throw e;
+			}
 		}
+
+		conn.close();
 
 	}
 }
