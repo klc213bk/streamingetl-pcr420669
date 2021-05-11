@@ -20,6 +20,7 @@ public class Config {
 	public String sinkDbDriver;
 	public String sinkDbUrl;
 	public String sinkTablePartyContact;
+	public String sinkTablePartyContactTemp;
 
 
 	public static Config getConfig(String fileName) throws Exception {
@@ -45,6 +46,7 @@ public class Config {
 			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");
 			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
 			dbConfig.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
+			dbConfig.sinkTablePartyContactTemp = prop.getProperty("sink.table.party_contact_temp");
 
 			return dbConfig;
 		} catch (Exception e) {

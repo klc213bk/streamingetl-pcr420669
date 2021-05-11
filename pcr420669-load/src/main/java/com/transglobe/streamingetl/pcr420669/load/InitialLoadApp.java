@@ -42,6 +42,7 @@ public class InitialLoadApp {
 
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
+	private static final String CREATE_TEMP_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT_TEMP.sql";
 
 	private static final int THREADS = 10;
 
@@ -50,8 +51,6 @@ public class InitialLoadApp {
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
 
-	private String createTableFile;
-	
 	static class LoadBean {
 		String fullTableName;
 		Integer roleType;
@@ -60,10 +59,10 @@ public class InitialLoadApp {
 	}
 	private Config config;
 
-	public InitialLoadApp(String fileName, String createTableFile) throws Exception {
+	public InitialLoadApp(String fileName) throws Exception {
 		config = Config.getConfig(fileName);
-		this.createTableFile = createTableFile;
-		
+		//	this.createTableFile = createTableFile;
+
 		sourceConnectionPool = new BasicDataSource();
 
 		sourceConnectionPool.setUrl(config.sourceDbUrl);
@@ -98,13 +97,18 @@ public class InitialLoadApp {
 		try {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
 			String createTableFile = StringUtils.isBlank(profileActive)? CREATE_TABLE_FILE_NAME : profileActive + "/" + CREATE_TABLE_FILE_NAME;
+			String createTempTableFile = StringUtils.isBlank(profileActive)? CREATE_TEMP_TABLE_FILE_NAME : profileActive + "/" + CREATE_TEMP_TABLE_FILE_NAME;
 
-			InitialLoadApp app = new InitialLoadApp(configFile, createTableFile);
+			InitialLoadApp app = new InitialLoadApp(configFile);
 
 			// create sink table
-			app.createTable();
-				
-			app.run();
+			app.dropTable(app.config.sinkTablePartyContact);
+			app.dropTable(app.config.sinkTablePartyContactTemp);
+
+			app.createTable(app.config.sinkTablePartyContact, createTableFile);
+			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
+
+			//			app.run();
 
 			app.close();
 
@@ -131,7 +135,7 @@ public class InitialLoadApp {
 			String sql = "select " + roleType + " as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
 					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq 
 					+ " and rownum < 10";
-				//	+ " fetch next 10 rows only";
+			//	+ " fetch next 10 rows only";
 
 			//		logger.info(">>> sql= {}", sql);
 
@@ -313,6 +317,7 @@ public class InitialLoadApp {
 			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL)");
 			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + this.config.sinkTablePartyContact + " (EMAIL)");
 			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + this.config.sinkTablePartyContact + " (ADDRESS_ID)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + this.config.sinkTablePartyContactTemp + " (ADDRESS_ID)");
 			stmt.close();
 			sinkConn.close();
 
@@ -374,46 +379,36 @@ public class InitialLoadApp {
 
 		}
 	}
-	
-	private void createTable() throws Exception {
-
+	private void dropTable(String tableName) throws SQLException {
+		logger.info(">>>  dropTable, tableName={}", tableName);
 		Connection conn = sinkConnectionPool.getConnection();
-		
-		boolean createTable = false;
+
 		Statement stmt = null;
 		try {
 			stmt = conn.createStatement();
-
-			stmt.executeQuery("select count(*) from " + config.sinkTablePartyContact);
-
-			// drop table 
-			logger.info(">>> drop table");
-			stmt = conn.createStatement();
-			stmt.executeUpdate("DROP TABLE " + config.sinkTablePartyContact);
-			
-			// create table
-			createTable = true;
+			stmt.executeUpdate("DROP TABLE " + tableName);
+			stmt.close();
 		} catch (java.sql.SQLException e) {
-			logger.info(">>> err mesg={}, continue to create table", e.getMessage());
-
-			// assume sink table does not exists
-			// create table
-			createTable = true;
-
-		}
-		stmt.close();
-
-		if (createTable) {
-			logger.info(">>> create table");
-			ClassLoader loader = Thread.currentThread().getContextClassLoader();	
-			try (InputStream inputStream = loader.getResourceAsStream(createTableFile)) {
-				String createTableScript = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-				stmt = conn.createStatement();
-				stmt.executeUpdate(createTableScript);
-			} catch (SQLException | IOException e) {
-				if (stmt != null) stmt.close();
-				throw e;
+			logger.info(">>>  table:" + tableName + " does not exists!!!");
+		} finally {
+			if (conn != null) { 
+				conn.close();
 			}
+		}
+	}
+	private void createTable(String tableName, String createTableFile) throws Exception {
+		logger.info(">>>  createTable, tableName={}, createTableFile={}", tableName, createTableFile);
+		Connection conn = sinkConnectionPool.getConnection();
+
+		Statement stmt = null;
+		ClassLoader loader = Thread.currentThread().getContextClassLoader();	
+		try (InputStream inputStream = loader.getResourceAsStream(createTableFile)) {
+			String createTableScript = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+			stmt = conn.createStatement();
+			stmt.executeUpdate(createTableScript);
+		} catch (SQLException | IOException e) {
+			if (stmt != null) stmt.close();
+			throw e;
 		}
 
 		conn.close();

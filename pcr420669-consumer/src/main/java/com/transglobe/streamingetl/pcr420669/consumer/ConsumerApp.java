@@ -87,9 +87,7 @@ public class ConsumerApp {
 
 			app = new ConsumerApp(configFile, createTableFile);
 
-			app.createTopics();
-
-			app.createTable();
+		//	app.createTopics();
 
 			app.run();
 
@@ -458,43 +456,6 @@ public class ConsumerApp {
 			String error = String.format("table=%s record does not exist, role_type=%d, list_id=%d", config.sinkTablePartyContact, oldpartyContact.getRoleType(), oldpartyContact.getListId());
 			throw new Exception(error);
 		}
-
-	}
-	private void createTable() throws Exception {
-
-		Connection conn = connPool.getConnection();
-
-		boolean createTable = false;
-		Statement stmt = null;
-		try {
-			stmt = conn.createStatement();
-
-			stmt.executeQuery("select count(*) from " + config.sinkTablePartyContact);
-
-		} catch (java.sql.SQLException e) {
-			logger.info(">>> err mesg={}, continue to create table", e.getMessage());
-
-			// assume sink table does not exists
-			// create table
-			createTable = true;
-
-		}
-		stmt.close();
-
-		if (createTable) {
-			logger.info(">>> create table");
-			ClassLoader loader = Thread.currentThread().getContextClassLoader();	
-			try (InputStream inputStream = loader.getResourceAsStream(createTableFile)) {
-				String createTableScript = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-				stmt = conn.createStatement();
-				stmt.executeUpdate(createTableScript);
-			} catch (SQLException | IOException e) {
-				if (stmt != null) stmt.close();
-				throw e;
-			}
-		}
-
-		conn.close();
 
 	}
 
