@@ -31,6 +31,7 @@ import okhttp3.Response;
 public class TestApp {
 	private static final Logger logger = LoggerFactory.getLogger(TestApp.class);
 
+	private static final String CONFIG_FILE_NAME = "config.dev1.properties";
 	private static String BASE_URL = "http://localhost:8080/partycontact/v1.0";
 
 	private static int ADDRESS_ROLE_TYPE = 0;
@@ -44,7 +45,7 @@ public class TestApp {
 	private static String CONTRACT_BENE_SRC = "TEST_T_CONTRACT_BENE1";
 
 
-	private static final String CONFIG_FILE_NAME = "config.dev1.properties";
+
 
 	Config config;
 
@@ -63,9 +64,9 @@ public class TestApp {
 			app.testInsert1Party(POLICY_HOLDER_ROLE_TYPE);
 
 			app.testInsert1Party(INSURED_LIST_ROLE_TYPE);
-			
+
 			app.testInsert1Party(CONTRACT_BENE_ROLE_TYPE);
-			
+
 			app.testInsert1Address();
 
 
@@ -94,14 +95,22 @@ public class TestApp {
 			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
 
 			sql = "delete " + config.sinkTablePartyContact;
+			logger.info(">>>>> sql1:{}", sql);
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.executeUpdate();	
-			pstmt.close();	
+			pstmt.close();
+			
+			sql = "delete " + config.sinkTablePartyContactTemp;
+			logger.info(">>>>> sql2:{}", sql);
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.executeUpdate();	
+			pstmt.close();
 
 			List<String> sqlList = new ArrayList<>();
 			sqlList.add("truncate table " + config.sourceTablePolicyHolder);
 			sqlList.add("truncate table " + config.sourceTableInsuredList);
 			sqlList.add("truncate table " + config.sourceTableContractBene);
+			sqlList.add("truncate table " + config.sourceTableAddress);
 			for (String sqlstr : sqlList) {
 				pstmt = sourceConn.prepareStatement(sqlstr);
 				pstmt.executeUpdate();	
@@ -225,7 +234,7 @@ public class TestApp {
 			// check data insert ignite
 			sql = "select * from " + config.sinkTablePartyContact + " where list_id = " + partyContact.getListId();
 			Statement stmt = sinkConn.createStatement();
-			
+
 			List<PartyContact> partyContactList = new ArrayList<>();
 			while (true) {
 				rs = stmt.executeQuery(sql);
@@ -240,7 +249,7 @@ public class TestApp {
 					partyContact2.setEmail(rs.getString("EMAIL"));
 					partyContact2.setAddressId(rs.getLong("ADDRESS_ID"));
 					partyContact2.setAddress1(rs.getString("ADDRESS_1"));
-					
+
 					partyContactList.add(partyContact2);
 				}
 				if (partyContactList.size() > 0) {
@@ -262,7 +271,7 @@ public class TestApp {
 			}
 			logger.info(">>>>> testInsert1Party, Table insert");
 
-			
+
 			// check spring boot result for email
 			List<PartyContact> contactLista = queryPartyContact("email", partyContact.getEmail());
 			int retCounta = contactLista.size();
@@ -278,7 +287,7 @@ public class TestApp {
 						result = true;
 						break;
 					}
-					
+
 				}
 				if (!result) {
 					throw new Exception(">>>>> email found no match");
@@ -328,7 +337,7 @@ public class TestApp {
 				}
 			}
 
-			logger.info(">>>>> End -> TEST testInsert1Party, Query     [ OK ]");
+			logger.info(">>>>> End -> TEST testInsert1Party for {}, Query     [ OK ]", roleType);
 
 		} catch (Exception e) {
 			throw e;
@@ -381,7 +390,7 @@ public class TestApp {
 
 	private void testInsert1Address() throws Exception {
 		logger.info(">>>>> Start --> testInsert1Address ");
-	
+
 		Connection sourceConn = null;
 		Connection sinkConn = null;
 		PreparedStatement pstmt = null;
@@ -391,47 +400,47 @@ public class TestApp {
 			Class.forName(config.sourceDbDriver);
 			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
 			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
-	
+
 			Class.forName(config.sinkDbDriver);
 			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
 			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
-	
+
 			sourceConn.setAutoCommit(false);
 			sinkConn.setAutoCommit(false);
-	
-			String initSrcTable = ADDRESS_SRC;
-			String srcTable = config.sourceTableAddress;
-	
-			sql = "select address_id from " + initSrcTable;
+
+			//			String initSrcTable = ADDRESS_SRC;
+			//			String srcTable = config.sourceTableAddress;
+
+			sql = "select address_id from " + ADDRESS_SRC;
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery(sql);
 			List<Long> addressIdList = new ArrayList<>();
 			while (rs.next()) {
 				addressIdList.add(rs.getLong("ADDRESS_ID"));
 			}
-	
+
 			Random random = new Random(System.currentTimeMillis());
 			int offset  = random.nextInt(addressIdList.size());
-	
+
 			Long selectedAddressId = addressIdList.get(offset);
-	
+
 			logger.info(">>count={}, offset={}, selectedAddressId={}", 
-					addressIdList.size(), offset, selectedAddressId);
-	
-			sql = "insert into " + srcTable 
-					+ " (select * from " + initSrcTable 
+					addressIdList.size(), offset, selectedAddressId);	
+
+			sql = "insert into " + config.sourceTableAddress 
+					+ " (select * from " + ADDRESS_SRC 
 					+ " where address_id = " + selectedAddressId
 					+ ")";
-	
+
 			pstmt = sourceConn.prepareStatement(sql);
 			pstmt.executeUpdate();	
 			pstmt.close();
 			sourceConn.commit();
-	
+
 			logger.info(">>> insert sql={}", sql);
-	
+
 			// check data insert oracle
-			sql = "select * from " + srcTable + " where address_id = " + selectedAddressId;
+			sql = "select * from " + config.sourceTableAddress + " where address_id = " + selectedAddressId;
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery(sql);
 			int i = 0;
@@ -443,108 +452,84 @@ public class TestApp {
 			}
 			rs.close();
 			pstmt.close();
-	
+
 			if (i != 1) {
 				throw new Exception(">>>>> testInsert1Address error, oracle wrong data row count:" + i);
 			}
-	
-			// check data insert ignite
-			sql = "select * from " + config.sinkTablePartyContact + " where address_id = " + taddress.getAddressId();
-			Statement stmt = sinkConn.createStatement();
-			
-			List<PartyContact> partyContactList = new ArrayList<>();
-			while (true) {
-				rs = stmt.executeQuery(sql);
-				while (rs.next()) {
-					PartyContact partyContact2 = new PartyContact();
-					partyContact2.setRoleType(rs.getInt("ROLE_TYPE"));
-					partyContact2.setListId(rs.getLong("LIST_ID"));
-					partyContact2.setPolicyId(rs.getLong("POLICY_ID"));
-					partyContact2.setName(rs.getString("NAME"));
-					partyContact2.setCertiCode(rs.getString("CERTI_CODE"));
-					partyContact2.setMobileTel(rs.getString("MOBILE_TEL"));
-					partyContact2.setEmail(rs.getString("EMAIL"));
-					partyContact2.setAddressId(rs.getLong("ADDRESS_ID"));
-					partyContact2.setAddress1(rs.getString("ADDRESS_1"));
-					
-					partyContactList.add(partyContact2);
-				}
-				if (partyContactList.size() > 0) {
-					break;
-				} else  {
-					logger.info(">>> Wait for 2 seconds");
-					Thread.sleep(2000);
-				}
-	
-			}
-			rs.close();
-			stmt.close();
-	
-			if (partyContactList.size() == 0) {
-				throw new Exception(">>>>> testInsert1Address address error, ignite wrong data row count:" + partyContactList.size());
-			} else if (partyContactList.size() == 1) {
-				PartyContact contact = partyContactList.get(0);
-				if (contact.getRoleType().intValue() == 0) {
-					// only address
-					if (contact.getAddressId().longValue() == taddress.getAddressId().longValue()
-							 && StringUtils.equals(contact.getAddress1(), taddress.getAddress1()) 
-							&& contact.getRoleType().intValue() == ADDRESS_ROLE_TYPE
-							&& contact.getListId().longValue() == taddress.getAddressId().longValue()) {
-						// pass do nothing
-					} else {
-						logger.error(">>> contact={}", ToStringBuilder.reflectionToString(contact));
-						logger.error(">>> taddress={}", ToStringBuilder.reflectionToString(taddress));
-						throw new Exception(">>>>> address not equal");
-					}
-				} else {
-					// with party contact
-					if (contact.getAddressId().longValue() == taddress.getAddressId().longValue()
-								 && StringUtils.equals(contact.getAddress1(), taddress.getAddress1()) ) {
-							// pass do nothing
-					} else {
-						logger.error(">>> contact={}", ToStringBuilder.reflectionToString(contact));
-						logger.error(">>> taddress={}", ToStringBuilder.reflectionToString(taddress));
-						throw new Exception(">>>>> address not equal");
-					}
-			
-				} 
-			} else {
-				// with multiple contact
-				for (PartyContact contact : partyContactList ) {
-					if (contact.getAddressId().longValue() != taddress.getAddressId().longValue()
-							|| !StringUtils.equals(contact.getAddress1(), taddress.getAddress1())) {
-						logger.error(">>> contact={}", ToStringBuilder.reflectionToString(contact));
-						logger.error(">>> taddress={}", ToStringBuilder.reflectionToString(taddress));
-						throw new Exception(">>>>> address not equal");
-					}
-				}
-			}
-			
-			logger.info(">>>>> testInsert1Address, Table insert cehck ok");
+			logger.info(">>> src address ={}", ToStringBuilder.reflectionToString(taddress));
 
-			// check spring boot result for address
-			List<PartyContact> contactListc = queryPartyContact("address", taddress.getAddress1());
-			int retCountc = contactListc.size();
-			if ( StringUtils.isBlank(taddress.getAddress1())) {
-				if ( retCountc != 0) {
-					throw new Exception(">>>>> testInsert1Party size for address check error, return from springboot wrong data row count:" + retCountc);
-				}
-			} else {
-				boolean result = false;
-				for (int k =0; k < retCountc; k++) {
-					PartyContact partyContact3c = contactListc.get(k);
-					if (StringUtils.equals(partyContact3c.getAddress1(), taddress.getAddress1())) {
-						result = true;
-						break;
+
+			// check if address id exists in policy_holder, insured_list, contract_bene
+			if (isAddressIdExists(sourceConn, config.sourceTablePolicyHolder, taddress.getAddressId())
+				|| isAddressIdExists(sourceConn, config.sourceTablePolicyHolder, taddress.getAddressId())
+				|| isAddressIdExists(sourceConn, config.sourceTablePolicyHolder, taddress.getAddressId())) {
+				
+				// check data insert ignite
+				sql = "select * from " + config.sinkTablePartyContact + " where address_id = " + taddress.getAddressId();
+				Statement stmt = sinkConn.createStatement();
+
+				List<PartyContact> partyContactList = new ArrayList<>();
+				while (true) {
+					rs = stmt.executeQuery(sql);
+					while (rs.next()) {
+						PartyContact partyContact2 = new PartyContact();
+						partyContact2.setRoleType(rs.getInt("ROLE_TYPE"));
+						partyContact2.setListId(rs.getLong("LIST_ID"));
+						partyContact2.setPolicyId(rs.getLong("POLICY_ID"));
+						partyContact2.setName(rs.getString("NAME"));
+						partyContact2.setCertiCode(rs.getString("CERTI_CODE"));
+						partyContact2.setMobileTel(rs.getString("MOBILE_TEL"));
+						partyContact2.setEmail(rs.getString("EMAIL"));
+						partyContact2.setAddressId(rs.getLong("ADDRESS_ID"));
+						partyContact2.setAddress1(rs.getString("ADDRESS_1"));
+
+						partyContactList.add(partyContact2);
 					}
+					if (partyContactList.size() > 0) {
+						break;
+					} else  {
+						logger.info(">>> Wait for 2 seconds");
+						Thread.sleep(2000);
+					}
+
 				}
-				if (!result) {
-					throw new Exception(">>>>> address found no match");
+				rs.close();
+				stmt.close();
+				
+				
+			} else {
+				// check data insert ignite
+				sql = "select * from " + config.sinkTablePartyContactTemp + " where address_id = " + taddress.getAddressId();
+				Statement stmt = sinkConn.createStatement();
+				List<TAddress> addressList = new ArrayList<TAddress>();
+				while (true) {
+					rs = stmt.executeQuery(sql);
+					while (rs.next()) {
+						TAddress address = new TAddress();
+						address.setAddressId(rs.getLong("ADDRESS_ID"));
+						address.setAddress1(rs.getString("ADDRESS_1"));
+
+						addressList.add(address);
+					}
+					if (addressList.size() > 0) {
+						break;
+					} else  {
+						logger.info(">>> Wait for 2 seconds");
+						Thread.sleep(2000);
+					}
+
+				}
+				rs.close();
+				stmt.close();
+				
+				if (addressList.size() > 1) {
+					throw new Exception(">>> Error Have multiple addresses!!! ");
 				}
 			}
-	
-			logger.info(">>>>> End -> TEST testInsert1Address, Query     [ OK ]");
-	
+			
+			logger.info(">>>>> End -> TEST testInsert1Address,   [ OK ]");
+
+					
 		} catch (Exception e) {
 			throw e;
 		} finally {
@@ -563,5 +548,23 @@ public class TestApp {
 				}
 			}
 		}
+	}
+
+	private boolean isAddressIdExists(Connection conn, String tableName, long addressId) throws SQLException {
+		String sql = "select * from " + tableName + " where address_id = " + addressId;
+
+		Statement stmt = null;
+		ResultSet rs = null;
+		try {
+			stmt = conn.createStatement();
+			rs = stmt.executeQuery(sql);
+			while (rs.next()) {
+				return true;	
+			}
+		} finally {
+			if (rs != null) rs.close();
+			if (stmt != null) stmt.close();
+		}
+		return false;
 	}
 }

@@ -26,6 +26,7 @@ public class Config {
 	public String sinkDbUsername;
 	public String sinkDbPassword;
 	public String sinkTablePartyContact;
+	public String sinkTablePartyContactTemp;
 	public String bootstrapServers;
 	public String groupId;
 	public List<String> topicList;
@@ -55,6 +56,7 @@ public class Config {
 			config.sinkDbDriver = prop.getProperty("sink.db.driver");
 			config.sinkDbUrl = prop.getProperty("sink.db.url");
 			config.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
+			config.sinkTablePartyContactTemp = prop.getProperty("sink.table.party_contact_temp");
 			
 			return config;
 		} catch (Exception e) {

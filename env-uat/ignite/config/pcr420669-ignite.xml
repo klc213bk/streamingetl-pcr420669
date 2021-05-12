@@ -27,19 +27,18 @@
 				<property name="defaultDataRegionConfiguration">
 					<bean class="org.apache.ignite.configuration.DataRegionConfiguration">
 						<property name="name" value="Default_Region"/>
-        				<!-- Setting the size of the default region to 1GB. -->
-        				<property name="maxSize" value="#{1L * 1024 * 1024 * 1024}"/>
+        				<!-- Setting the size of the default region to 8GB. -->
+        				<property name="maxSize" value="#{8L * 1024 * 1024 * 1024}"/>
 					</bean>
 				</property>
 			</bean>
 		</property>
 		<property name="clientConnectorConfiguration">
-			<bean
-				class="org.apache.ignite.configuration.ClientConnectorConfiguration">
+			<bean class="org.apache.ignite.configuration.ClientConnectorConfiguration">
 				<property name="port" value="10850" />
 			</bean>
 		</property>
-		
-		
+
+
 	</bean>
 </beans>
