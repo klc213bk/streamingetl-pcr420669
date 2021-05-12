@@ -31,7 +31,7 @@ import okhttp3.Response;
 public class TestApp {
 	private static final Logger logger = LoggerFactory.getLogger(TestApp.class);
 
-	private static final String CONFIG_FILE_NAME = "config.dev1.properties";
+	private static final String CONFIG_FILE_NAME = "config.dev2.properties";
 	private static String BASE_URL = "http://localhost:8080/partycontact/v1.0";
 
 	private static int ADDRESS_ROLE_TYPE = 0;

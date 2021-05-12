@@ -21,7 +21,18 @@
 	<import resource="ignite-parent.xml" />
 
 	<bean parent="ignite.cfg">
-		
+		<property name="dataStorageConfiguration">
+			<bean class="org.apache.ignite.configuration.DataStorageConfiguration">
+				<property name="walMode" value="NONE"/>
+				<property name="defaultDataRegionConfiguration">
+					<bean class="org.apache.ignite.configuration.DataRegionConfiguration">
+						<property name="name" value="Default_Region"/>
+        				<!-- Setting the size of the default region to 2GB. -->
+        				<property name="maxSize" value="#{2L * 1024 * 1024 * 1024}"/>
+					</bean>
+				</property>
+			</bean>
+		</property>
 		<property name="clientConnectorConfiguration">
 			<bean
 				class="org.apache.ignite.configuration.ClientConnectorConfiguration">

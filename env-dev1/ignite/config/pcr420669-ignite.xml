@@ -27,8 +27,8 @@
 				<property name="defaultDataRegionConfiguration">
 					<bean class="org.apache.ignite.configuration.DataRegionConfiguration">
 						<property name="name" value="Default_Region"/>
-        				<!-- Setting the size of the default region to 1GB. -->
-        				<property name="maxSize" value="#{1L * 1024 * 1024 * 1024}"/>
+        				<!-- Setting the size of the default region to 2GB. -->
+        				<property name="maxSize" value="#{2L * 1024 * 1024 * 1024}"/>
 					</bean>
 				</property>
 			</bean>
