@@ -312,19 +312,13 @@ public class InitialLoadApp {
 				//				}
 			}
 
-			Connection sinkConn = this.sinkConnectionPool.getConnection();
-			stmt = sinkConn.createStatement();
-			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL)");
-			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + this.config.sinkTablePartyContact + " (EMAIL)");
-			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + this.config.sinkTablePartyContact + " (ADDRESS_ID)");
-			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + this.config.sinkTablePartyContactTemp + " (ADDRESS_ID)");
-			stmt.close();
-			sinkConn.close();
-
+            // create indexes
+			createIndexes();
+			
 			// check correction
 			// sink
 			Long t1 = System.currentTimeMillis();
-			sinkConn = this.sinkConnectionPool.getConnection();
+			Connection sinkConn = this.sinkConnectionPool.getConnection();
 			stmt = sinkConn.createStatement();
 			resultSet = stmt.executeQuery("select count(*) as SINK_COUNT from " + this.config.sinkTablePartyContact );
 			Long sinkCount = 0L;
@@ -413,5 +407,21 @@ public class InitialLoadApp {
 
 		conn.close();
 
+	}
+
+	private void createIndexes() throws SQLException {
+		Connection sinkConn = null;
+		Statement stmt = null;
+		try {
+			sinkConn = this.sinkConnectionPool.getConnection();
+			stmt = sinkConn.createStatement();
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + this.config.sinkTablePartyContact + " (EMAIL)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + this.config.sinkTablePartyContact + " (ADDRESS_ID)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + this.config.sinkTablePartyContactTemp + " (ADDRESS_ID)");
+		} finally {
+			if (stmt != null) stmt.close();
+			if (sinkConn != null) sinkConn.close();
+		}
 	}
 }
