@@ -46,7 +46,7 @@ public class InitialLoadApp {
 
 	private static final int THREADS = 10;
 
-	private static final long SEQ_INTERVAL = 10000000000L;//1000000L;
+	private static final long SEQ_INTERVAL = 1000000L;
 
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
@@ -108,7 +108,7 @@ public class InitialLoadApp {
 			app.createTable(app.config.sinkTablePartyContact, createTableFile);
 			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
 
-			//			app.run();
+			app.run();
 
 			app.close();
 
@@ -133,8 +133,8 @@ public class InitialLoadApp {
 			Connection sinkConn = this.sinkConnectionPool.getConnection();
 
 			String sql = "select " + roleType + " as ROLE_TYPE,a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
-					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq 
-					+ " and rownum < 10";
+					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq ;
+			//		+ " and rownum < 10";
 			//	+ " fetch next 10 rows only";
 
 			//		logger.info(">>> sql= {}", sql);
