@@ -108,7 +108,7 @@ public class InitialLoadApp {
 			app.createTable(app.config.sinkTablePartyContact, createTableFile);
 			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
 
-			app.run();
+	//		app.run();
 
 			app.close();
 

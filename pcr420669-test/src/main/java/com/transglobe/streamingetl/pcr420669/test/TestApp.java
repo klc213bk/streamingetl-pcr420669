@@ -69,6 +69,8 @@ public class TestApp {
 
 			app.testInsert1Address();
 
+			app.testInsert1AddressMatchPartyWithoutAddress();
+
 
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -93,25 +95,27 @@ public class TestApp {
 			Class.forName(config.sinkDbDriver);
 			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
 			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
-
+			sinkConn.setAutoCommit(false);
+			
 			sql = "delete " + config.sinkTablePartyContact;
 			logger.info(">>>>> sql1:{}", sql);
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.executeUpdate();	
 			pstmt.close();
-			
+
 			sql = "delete " + config.sinkTablePartyContactTemp;
 			logger.info(">>>>> sql2:{}", sql);
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.executeUpdate();	
 			pstmt.close();
+			sinkConn.commit();
 
 			List<String> sqlList = new ArrayList<>();
-			// truncate is dangerous
-//			sqlList.add("truncate table " + config.sourceTablePolicyHolder);
-//			sqlList.add("truncate table " + config.sourceTableInsuredList);
-//			sqlList.add("truncate table " + config.sourceTableContractBene);
-//			sqlList.add("truncate table " + config.sourceTableAddress);
+
+			sqlList.add("truncate table " + config.sourceTablePolicyHolder);
+			sqlList.add("truncate table " + config.sourceTableInsuredList);
+			sqlList.add("truncate table " + config.sourceTableContractBene);
+			sqlList.add("truncate table " + config.sourceTableAddress);
 			for (String sqlstr : sqlList) {
 				pstmt = sourceConn.prepareStatement(sqlstr);
 				pstmt.executeUpdate();	
@@ -231,11 +235,14 @@ public class TestApp {
 			if (i != 1) {
 				throw new Exception(">>>>> testInsert1Party error, oracle wrong data row count:" + i);
 			}
-
+			logger.info(">>> got party ={}", partyContact);
+			
 			// check data insert ignite
 			sql = "select * from " + config.sinkTablePartyContact + " where list_id = " + partyContact.getListId();
 			Statement stmt = sinkConn.createStatement();
-
+			
+			logger.info(">>> quert ignite, sql ={}", sql);
+			
 			List<PartyContact> partyContactList = new ArrayList<>();
 			while (true) {
 				rs = stmt.executeQuery(sql);
@@ -462,9 +469,9 @@ public class TestApp {
 
 			// check if address id exists in policy_holder, insured_list, contract_bene
 			if (isAddressIdExists(sourceConn, config.sourceTablePolicyHolder, taddress.getAddressId())
-				|| isAddressIdExists(sourceConn, config.sourceTablePolicyHolder, taddress.getAddressId())
-				|| isAddressIdExists(sourceConn, config.sourceTablePolicyHolder, taddress.getAddressId())) {
-				
+					|| isAddressIdExists(sourceConn, config.sourceTablePolicyHolder, taddress.getAddressId())
+					|| isAddressIdExists(sourceConn, config.sourceTablePolicyHolder, taddress.getAddressId())) {
+
 				// check data insert ignite
 				sql = "select * from " + config.sinkTablePartyContact + " where address_id = " + taddress.getAddressId();
 				Statement stmt = sinkConn.createStatement();
@@ -496,8 +503,8 @@ public class TestApp {
 				}
 				rs.close();
 				stmt.close();
-				
-				
+
+
 			} else {
 				// check data insert ignite
 				sql = "select * from " + config.sinkTablePartyContactTemp + " where address_id = " + taddress.getAddressId();
@@ -522,15 +529,15 @@ public class TestApp {
 				}
 				rs.close();
 				stmt.close();
-				
+
 				if (addressList.size() > 1) {
 					throw new Exception(">>> Error Have multiple addresses!!! ");
 				}
 			}
-			
+
 			logger.info(">>>>> End -> TEST testInsert1Address,   [ OK ]");
 
-					
+
 		} catch (Exception e) {
 			throw e;
 		} finally {
@@ -567,5 +574,138 @@ public class TestApp {
 			if (stmt != null) stmt.close();
 		}
 		return false;
+	}
+	private void testInsert1AddressMatchPartyWithoutAddress() throws Exception {
+		logger.info(">>>>> START -> testInsert1AddressMatchPartyWithoutAddress");
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs;
+		String sql = "";
+		try {
+			Class.forName(config.sourceDbDriver);
+			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			Class.forName(config.sinkDbDriver);
+			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
+
+			sourceConn.setAutoCommit(false);
+			sinkConn.setAutoCommit(false);
+
+			// from ignite, select 1 partycontact without address
+			// partycontact_a = select * from t_party_contact where address_1 is null limit 1;
+			sql = "select * from " + config.sinkTablePartyContact + " where address_1 is null";
+			pstmt = sinkConn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
+			PartyContact partyContact = null;
+			while (rs.next()) {
+				partyContact = new PartyContact();
+				partyContact.setAddress1(rs.getString("ADDRESS_1"));
+				partyContact.setAddressId(rs.getLong("ADDRESS_ID"));
+				partyContact.setCertiCode(rs.getString("CERTI_CODE"));
+				partyContact.setEmail(rs.getString("EMAIL"));
+				partyContact.setListId(rs.getLong("LIST_ID"));
+				partyContact.setMobileTel(rs.getString("MOBILE_TEL"));
+				partyContact.setName(rs.getString("NAME"));
+				partyContact.setPolicyId(rs.getLong("POLICY_ID"));
+				partyContact.setRoleType(rs.getInt("ROLE_TYPE"));
+
+				break;
+			}
+			rs.close();
+			pstmt.close();
+
+			if (partyContact == null) {
+				throw new Exception("No partycontact without address");
+			}
+			logger.info(">>> selected party without address_1, partyContact={}", ToStringBuilder.reflectionToString(partyContact));
+			
+			
+			// select address with address _id
+			// select address_1 from t_adress where address_id = ?
+			sql = "select * from " + ADDRESS_SRC + " where address_id = ? and address_1 is not null";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, partyContact.getAddressId());
+			rs = pstmt.executeQuery();
+			TAddress address = null;
+			while (rs.next()) {
+				address = new TAddress();
+				address.setAddressId(rs.getLong("ADDRESS_ID"));
+				address.setAddress1(rs.getNString("ADDRESS_1"));
+			}
+			rs.close();
+			pstmt.close();
+
+			if (address == null) {
+				throw new Exception("No address with address id=" + partyContact.getAddressId());
+			}
+			logger.info(">>> selected address ={}", ToStringBuilder.reflectionToString(address));
+			
+			// insert address into ignite
+			sql = "insert into " + config.sourceTableAddress 
+					+ " (select * from " + ADDRESS_SRC 
+					+ " where address_id=?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, address.getAddressId());
+			pstmt.executeUpdate();
+			pstmt.close();
+			sourceConn.commit();
+
+			// varify
+			sql = "select * from " + config.sinkTablePartyContact + " where address_id = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setLong(1, address.getAddressId());
+
+			logger.info(">>> sql={}" + sql);
+			
+			int count = 0;
+			while (true) {
+				rs = pstmt.executeQuery();
+				while (rs.next()) {
+					count++;
+					if (!StringUtils.equals(address.getAddress1(), rs.getString("ADDRESS_1"))) {
+						throw new Exception("address 1 not equal, address_a=" + address.getAddress1() + ", address_b=" + rs.getString("ADDRESS_1"));
+					}
+				}
+				if (count > 0) {
+					break;
+				} else  {
+					logger.info(">>> Wait for 2 seconds");
+					Thread.sleep(2000);
+				}
+
+			}
+			rs.close();
+			pstmt.close();
+
+			// check t_party_contact_temp has no record for that addres id
+			sql = "select * from " + config.sinkTablePartyContactTemp + " where address_id = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setLong(1, address.getAddressId());
+			while (rs.next()) {
+				throw new Exception("t_party_contact_temp found recrd for address id=" + address.getAddressId() + ", which is incorrect.");
+			}
+
+			logger.info(">>>>> End testInsert1AddressMatchPartyWithoutAddress,   [ OK ]");
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+		}
 	}
 }

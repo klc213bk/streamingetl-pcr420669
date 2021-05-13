@@ -96,6 +96,7 @@ public class ConsumerApp {
 		props.setProperty("group.id", config.groupId);
 		props.setProperty("enable.auto.commit", "true");
 		props.setProperty("auto.commit.interval.ms", "1000");
+		props.setProperty("max.poll.interval.ms", "120000");
 		props.setProperty("session.timeout.ms", "300000");
 		props.setProperty("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 		props.setProperty("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
@@ -129,12 +130,15 @@ public class ConsumerApp {
 								String operation = payload.get("OPERATION").asText();
 								logger.info("   >>>operation={}", operation);
 								if ("INSERT".equals(operation)) {
+									logger.info("   >>>doInsert");
 									doInsert(conn, objectMapper, payload);
 
 								} else if ("UPDATE".equals(operation)) {
+									logger.info("   >>>doUpdate");
 									doUpdate(conn, objectMapper, payload);
 
 								} else if ("DELETE".equals(operation)) {
+									logger.info("   >>>doDelete");
 									doDelete(conn, objectMapper, payload);
 
 								}
@@ -213,6 +217,7 @@ public class ConsumerApp {
 		if (config.sourceTablePolicyHolder.equals(fullTableName)
 				|| config.sourceTableInsuredList.equals(fullTableName)
 				|| config.sourceTableContractBene.equals(fullTableName)) {
+			logger.info("   >>>insert partyContact");
 			PartyContact partyContact = objectMapper.readValue(data, PartyContact.class);
 			logger.info(">>> partyContact={}", partyContact);
 
@@ -224,13 +229,13 @@ public class ConsumerApp {
 				partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 				partyContact.setEmail(null); // 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 			}
-
+			logger.info(">>> start insertPartyContact");
 			insertPartyContact(conn, partyContact);
 
 		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			Address address = objectMapper.readValue(data, Address.class);
 			logger.info(">>> address={}", address);
-
+			logger.info("   >>>insert Address");
 			insertAddress(conn, address);
 		}
 
@@ -243,7 +248,7 @@ public class ConsumerApp {
 		String sql = "";
 		Integer roleType = null;
 		Long listId = null;
-		
+
 		if (config.sourceTablePolicyHolder.equals(fullTableName)
 				|| config.sourceTableInsuredList.equals(fullTableName)
 				|| config.sourceTableContractBene.equals(fullTableName)) {
@@ -267,7 +272,7 @@ public class ConsumerApp {
 
 			throw new Exception(">>> Delete action for address is not supported");
 		}
-		
+
 
 		sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact + " where role_type = ? and list_id = ?";
 		PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -364,7 +369,6 @@ public class ConsumerApp {
 	private void deletePartyContactTemp(Connection conn, Long addressId) throws SQLException {
 		PreparedStatement pstmt = null;
 		try {
-			conn = connPool.getConnection();
 			String sql = "delete " + config.sinkTablePartyContactTemp + " where address_id = " + addressId;
 			pstmt = conn.prepareStatement(sql);
 			pstmt.executeUpdate();
@@ -376,12 +380,13 @@ public class ConsumerApp {
 		}
 	}
 	private String getAddress1FromPartyContactTemp(Connection conn, Long addressId) throws SQLException {
-
+		logger.info(">>> ccc");
 		PreparedStatement pstmt = null;
 		ResultSet resultSet = null;
 		String address1 = null;
 		try {
 			String sql = "select ADDRESS_1 from " + config.sinkTablePartyContactTemp + " where address_id = " + addressId;
+			logger.info(">>> sql={}", sql);
 			pstmt = conn.prepareStatement(sql);
 			resultSet = pstmt.executeQuery();
 
@@ -389,6 +394,8 @@ public class ConsumerApp {
 				address1 = resultSet.getString("ADDRESS_1");
 				break;
 			}
+			logger.info(">>> address1={}", address1);
+
 			resultSet.close();
 			pstmt.close();
 
@@ -399,8 +406,8 @@ public class ConsumerApp {
 
 		return address1;
 	}
-	private Integer getCount(String sql) throws SQLException {
-		Connection conn = connPool.getConnection();
+	private Integer getCount(Connection conn, String sql) throws SQLException {
+
 		PreparedStatement pstmt = conn.prepareStatement(sql);
 		ResultSet resultSet = pstmt.executeQuery();
 		Integer count = 0; 
@@ -410,8 +417,6 @@ public class ConsumerApp {
 		logger.info(">>> count={}", count);
 		resultSet.close();
 		pstmt.close();
-
-		conn.close();
 
 		return count;
 	}
@@ -482,7 +487,7 @@ public class ConsumerApp {
 		}
 
 	}
-	
+
 	private void updateAddress(Connection conn, Address oldAddress, Address newAddress) throws Exception  {
 
 		PreparedStatement pstmt = null;
@@ -497,7 +502,7 @@ public class ConsumerApp {
 
 			pstmt.executeUpdate();
 			pstmt.close();
-			
+
 			// update PartyContactTemp
 			sql = "update " + config.sinkTablePartyContactTemp
 					+ " set ADDRESS_1 = ? where ADDRESS_ID = ?";
@@ -512,14 +517,18 @@ public class ConsumerApp {
 		}
 	}
 	private void insertPartyContact(Connection conn, PartyContact partyContact) throws Exception  {
+		logger.info(">>> start fun:insertPartyContact");
 		PreparedStatement pstmt = null;
 
 		String sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
 				+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
-		int count = getCount(sql);
+		logger.info(">>> sql={}", sql);
+		int count = getCount(conn, sql);
+		logger.info(">>> sinkTablePartyContact={}, count={}", config.sinkTablePartyContact, count);
 		if (count == 0) {
 			sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
 					+ " values (?,?,?,?,?,?,?,?,?)";
+			logger.info(">>> sql={}", sql);
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setInt(1, partyContact.getRoleType());
 			pstmt.setLong(2, partyContact.getListId());
@@ -534,21 +543,33 @@ public class ConsumerApp {
 			pstmt.executeUpdate();
 			pstmt.close();
 
+			logger.info(">>> ok1");
+
 			String address1 = getAddress1FromPartyContact(conn, partyContact.getAddressId());
+			logger.info(">>> address1={}", address1);
+
 			if (address1 == null) {
 				address1 = getAddress1FromPartyContactTemp(conn, partyContact.getAddressId());
 
+				logger.info(">>> aa address1={}", address1);
+
 				// delete PartyContactTemp
 				deletePartyContactTemp(conn, partyContact.getAddressId());
+
+				logger.info(">>> bb");
 			} 
 			// update address1
 			sql = "update " + config.sinkTablePartyContact + " set ADDRESS_1 = ? where role_type = ? and list_id = ?";
+			logger.info(">>> update={}", sql);
+
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setString(1, address1);
 			pstmt.setInt(2, partyContact.getRoleType());
 			pstmt.setLong(3, partyContact.getListId());
 			pstmt.executeUpdate();
 			pstmt.close();
+
+			logger.info(">>> ok2");
 		} else {
 			// record exists, error
 			String error = String.format("table=%s record already exists, role_type=%d, list_id=%d", config.sinkTablePartyContact, partyContact.getRoleType(), partyContact.getListId());
@@ -558,32 +579,44 @@ public class ConsumerApp {
 	private void insertAddress(Connection conn, Address address) throws Exception {
 
 		String sql = "select ROLE_TYPE,LIST_ID from " + config.sinkTablePartyContact + " where address_id = ?";
-		PreparedStatement pstmt = conn.prepareStatement(sql);
-		pstmt.setLong(1, address.getAddressId());
-		ResultSet resultSet = pstmt.executeQuery();
-		int count = 0;
-		while (resultSet.next()) {
-			// 存在address_id, 更新address_1
-			count++;
-			break;
-
-		}
-		resultSet.close();
-
-		if (count == 0) {
-			// insert 
-			sql = "insert into " + config.sinkTablePartyContactTemp + " (ADDRESS_ID,ADDRESS_1)" + " values (?,?)";
+		PreparedStatement pstmt = null;
+		try {
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setLong(1, address.getAddressId());
-			pstmt.setString(2, address.getAddress1());
-			pstmt.executeUpdate();
+			ResultSet resultSet = pstmt.executeQuery();
+			int count = 0;
+			while (resultSet.next()) {
+				count++;
+				break;
 
-			logger.info(">>> no address exists, insert sql={} ", sql);
-		} else {
-			throw new Exception(">>> address id exists. " + address.getAddressId());
+			}
+			resultSet.close();
+			pstmt.close();
+
+			if (count == 0) {
+				// insert 
+				sql = "insert into " + config.sinkTablePartyContactTemp + " (ADDRESS_ID,ADDRESS_1)" + " values (?,?)";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setLong(1, address.getAddressId());
+				pstmt.setString(2, address.getAddress1());
+				pstmt.executeUpdate();
+				pstmt.close();
+
+				logger.info(">>> no address exists, insert sql={} ", sql);
+			} else {
+				// update party contact
+				logger.info(">>> update party contact address");
+				sql = "update "  + config.sinkTablePartyContact + " set address_1 = ? where address_id = ?";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setString(1, address.getAddress1());
+				pstmt.setLong(2, address.getAddressId());
+				pstmt.executeUpdate();
+				pstmt.close();
+			}
+
+		} finally {
+			if (pstmt != null) pstmt.close();
 		}
-		pstmt.close();
-
 
 	}
 }
