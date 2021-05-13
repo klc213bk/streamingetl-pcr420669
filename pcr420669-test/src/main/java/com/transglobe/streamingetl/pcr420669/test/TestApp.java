@@ -107,10 +107,11 @@ public class TestApp {
 			pstmt.close();
 
 			List<String> sqlList = new ArrayList<>();
-			sqlList.add("truncate table " + config.sourceTablePolicyHolder);
-			sqlList.add("truncate table " + config.sourceTableInsuredList);
-			sqlList.add("truncate table " + config.sourceTableContractBene);
-			sqlList.add("truncate table " + config.sourceTableAddress);
+			// truncate is dangerous
+//			sqlList.add("truncate table " + config.sourceTablePolicyHolder);
+//			sqlList.add("truncate table " + config.sourceTableInsuredList);
+//			sqlList.add("truncate table " + config.sourceTableContractBene);
+//			sqlList.add("truncate table " + config.sourceTableAddress);
 			for (String sqlstr : sqlList) {
 				pstmt = sourceConn.prepareStatement(sqlstr);
 				pstmt.executeUpdate();	
