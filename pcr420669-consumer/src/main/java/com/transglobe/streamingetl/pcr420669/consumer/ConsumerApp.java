@@ -39,11 +39,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.transglobe.streamingetl.pcr420669.consumer.model.Address;
-import com.transglobe.streamingetl.pcr420669.consumer.model.ContractBene;
-import com.transglobe.streamingetl.pcr420669.consumer.model.InsuredList;
 import com.transglobe.streamingetl.pcr420669.consumer.model.PartyContact;
-import com.transglobe.streamingetl.pcr420669.consumer.model.PolicyHolder;
-
 
 public class ConsumerApp {
 
@@ -522,7 +518,7 @@ public class ConsumerApp {
 
 		String sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
 				+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
-		logger.info(">>> sql={}", sql);
+		logger.info(">>> sql={}, email={}", sql, partyContact.getEmail());
 		int count = getCount(conn, sql);
 		logger.info(">>> sinkTablePartyContact={}, count={}", config.sinkTablePartyContact, count);
 		if (count == 0) {
