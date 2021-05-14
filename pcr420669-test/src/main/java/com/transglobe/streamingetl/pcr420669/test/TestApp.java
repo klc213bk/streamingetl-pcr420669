@@ -31,7 +31,7 @@ import okhttp3.Response;
 public class TestApp {
 	private static final Logger logger = LoggerFactory.getLogger(TestApp.class);
 
-	private static final String CONFIG_FILE_NAME = "config.dev2.properties";
+	private static final String CONFIG_FILE_NAME = "config.dev1.properties";
 	private static String BASE_URL = "http://localhost:8080/partycontact/v1.0";
 
 	private static int ADDRESS_ROLE_TYPE = 0;
@@ -70,6 +70,8 @@ public class TestApp {
 			app.testInsert1Address();
 
 			app.testInsert1AddressMatchPartyWithoutAddress();
+			
+			app.testInsert1PartyMatchAddressInTemp();
 
 
 		} catch (Exception e) {
@@ -620,6 +622,7 @@ public class TestApp {
 			if (partyContact == null) {
 				throw new Exception("No partycontact without address");
 			}
+			String addressBefore = partyContact.getAddress1();
 			logger.info(">>> selected party without address_1, partyContact={}", ToStringBuilder.reflectionToString(partyContact));
 			
 			
@@ -658,18 +661,19 @@ public class TestApp {
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.setLong(1, address.getAddressId());
 
-			logger.info(">>> sql={}" + sql);
+			logger.info(">>> sql={}", sql);
 			
-			int count = 0;
+			boolean address1Updated = false;
+			String addressAfter = "";
 			while (true) {
 				rs = pstmt.executeQuery();
 				while (rs.next()) {
-					count++;
-					if (!StringUtils.equals(address.getAddress1(), rs.getString("ADDRESS_1"))) {
-						throw new Exception("address 1 not equal, address_a=" + address.getAddress1() + ", address_b=" + rs.getString("ADDRESS_1"));
+					addressAfter = rs.getString("ADDRESS_1");
+					if (StringUtils.equals(address.getAddress1(), rs.getString("ADDRESS_1"))) {
+						address1Updated = true;
 					}
 				}
-				if (count > 0) {
+				if (address1Updated) {
 					break;
 				} else  {
 					logger.info(">>> Wait for 2 seconds");
@@ -679,16 +683,229 @@ public class TestApp {
 			}
 			rs.close();
 			pstmt.close();
-
+			logger.info(">>>>> address1 before={}, after = {}", addressBefore, addressAfter);
+			
 			// check t_party_contact_temp has no record for that addres id
 			sql = "select * from " + config.sinkTablePartyContactTemp + " where address_id = ?";
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.setLong(1, address.getAddressId());
+			rs = pstmt.executeQuery();
+			
+			logger.info(">>>>> sql={}, address_id={}", sql, address.getAddressId());
 			while (rs.next()) {
 				throw new Exception("t_party_contact_temp found recrd for address id=" + address.getAddressId() + ", which is incorrect.");
 			}
-
+		
 			logger.info(">>>>> End testInsert1AddressMatchPartyWithoutAddress,   [ OK ]");
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+		}
+	}
+	private void testInsert1PartyMatchAddressInTemp() throws Exception {
+		logger.info(">>>>> START -> testInsert1PartyMatchAddressInTemp");
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs;
+		String sql = "";
+		try {
+			Class.forName(config.sourceDbDriver);
+			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			Class.forName(config.sinkDbDriver);
+			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
+
+			sourceConn.setAutoCommit(false);
+			sinkConn.setAutoCommit(false);
+			
+			// select address in temp
+			sql = "select * from " + config.sinkTablePartyContactTemp;
+			pstmt = sinkConn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
+			Long addressIdInTemp = null;
+			while (rs.next()) {
+				addressIdInTemp = rs.getLong("ADDRESS_ID");
+				break;
+			}
+			rs.close();
+			pstmt.close();
+			
+			if (addressIdInTemp == null) {
+				throw new Exception("No addressIdInTemp found");
+			}
+			logger.info(">>> selected addressIdInTemp={}", addressIdInTemp);
+			
+			// make sure no part exists in ignite
+			sql = "select * from " + config.sinkTablePartyContact + " where address_id = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setLong(1, addressIdInTemp);
+			rs = pstmt.executeQuery();
+			int count = 0;
+			while (rs.next()) {
+				count++;
+				break;
+			}
+			rs.close();
+			pstmt.close();
+			
+			if (count > 0) {
+				throw new Exception("address id exists both in PartContact and PartyContactTemp");
+			}
+			logger.info(">>> no partcontact exists for address id=" + addressIdInTemp);
+			
+			
+			// select from 
+			sql = "select * from " + POLICY_HOLDER_SRC + " where address_id = ?";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, addressIdInTemp);
+			rs = pstmt.executeQuery();
+			Long listId = null;
+			while (rs.next()) {
+				listId = rs.getLong("LIST_ID");
+				break;
+			}
+			rs.close();
+			pstmt.close();
+			
+			if (listId == null) {
+				logger.info("No party found for policyholder for address={}, continue to look up insuredlist",addressIdInTemp);
+				sql = "select * from " + INSURED_LIST_SRC + " where address_id = ?";
+				pstmt = sourceConn.prepareStatement(sql);
+				pstmt.setLong(1, addressIdInTemp);
+				rs = pstmt.executeQuery();
+				listId = null;
+				while (rs.next()) {
+					listId = rs.getLong("LIST_ID");
+					break;
+				}
+				rs.close();
+				pstmt.close();
+				
+				if (listId == null) {
+					logger.info("No party found for insured list for address={}, continue to look up contractbene",addressIdInTemp);
+					sql = "select * from " + CONTRACT_BENE_SRC + " where address_id = ?";
+					pstmt = sourceConn.prepareStatement(sql);
+					pstmt.setLong(1, addressIdInTemp);
+					rs = pstmt.executeQuery();
+					listId = null;
+					while (rs.next()) {
+						listId = rs.getLong("LIST_ID");
+						break;
+					}
+					rs.close();
+					pstmt.close();
+					
+					if (listId == null) {
+						throw new Exception(" no party foud for policyholder, insuredlist, and contractbene");
+					}
+				}	
+			}
+			logger.info(">>> get parlicy holder, list id", listId);
+			
+			// insert into policy holder
+			sql = "insert into " + config.sourceTablePolicyHolder
+					+ " (select * from " + POLICY_HOLDER_SRC + " where list_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, listId);
+			pstmt.executeUpdate();
+			pstmt.close();
+			
+			// verify
+			sql = "select * from " + config.sinkTablePartyContactTemp +" where address_id=?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setLong(1, addressIdInTemp);
+			rs = pstmt.executeQuery();
+			int count1 = 0;
+			while (rs.next()) {
+				count++;
+				break;
+			}
+			rs.close();
+			pstmt.close();
+			
+			if (count1 > 0) {
+				throw new Exception("Error: record exists in partycontactTemp with address id=" + addressIdInTemp);
+			}
+			logger.info(">>> record removeed in partycontactTemp with address id=" + addressIdInTemp);
+			
+			// check part inserted
+			sql = "select * from " + config.sinkTablePartyContact + " where listId = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setLong(1, listId);
+			rs = pstmt.executeQuery();
+			PartyContact partyContact2 = null;
+			while (rs.next()) {
+				partyContact2 = new PartyContact();
+				partyContact2.setAddress1(rs.getString("ADDRESS_1"));
+				partyContact2.setAddressId(rs.getLong("ADDRESS_ID"));
+				partyContact2.setCertiCode(rs.getString("CERTI_CODE"));
+				partyContact2.setEmail(rs.getString("EMAIL"));
+				partyContact2.setListId(rs.getLong("LIST_ID"));
+				partyContact2.setMobileTel(rs.getString("MOBILE_TEL"));
+				partyContact2.setName(rs.getString("NAME"));
+				partyContact2.setPolicyId(rs.getLong("POLICY_ID"));
+				partyContact2.setRoleType(rs.getInt("ROLE_TYPE"));
+			}
+			rs.close();
+			pstmt.close();
+			if (partyContact2 == null) {
+				throw new Exception("partyContact2 is null");
+			}
+			if (partyContact2.getAddressId().longValue() != addressIdInTemp.longValue()) {
+				throw new Exception("address id does not equal");
+			}
+			
+			// get from source table
+			sql = "select * from " + config.sourceTablePolicyHolder + " where listId = ?";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, listId);
+			rs = pstmt.executeQuery();
+			PartyContact partyContact3 = null;
+			while (rs.next()) {
+				partyContact3 = new PartyContact();
+				partyContact3.setAddress1(rs.getString("ADDRESS_1"));
+				partyContact3.setAddressId(rs.getLong("ADDRESS_ID"));
+				partyContact3.setCertiCode(rs.getString("CERTI_CODE"));
+				partyContact3.setEmail(rs.getString("EMAIL"));
+				partyContact3.setListId(rs.getLong("LIST_ID"));
+				partyContact3.setMobileTel(rs.getString("MOBILE_TEL"));
+				partyContact3.setName(rs.getString("NAME"));
+				partyContact3.setPolicyId(rs.getLong("POLICY_ID"));
+				partyContact3.setRoleType(rs.getInt("ROLE_TYPE"));
+			}
+			rs.close();
+			pstmt.close();
+			
+			if (partyContact3 == null) {
+				throw new Exception("partyContact3 is null");
+			}
+			if (partyContact3.getAddressId().longValue() != addressIdInTemp.longValue()) {
+				throw new Exception("address id does not equal");
+			}
+			
+			if (!partyContact2.equals(partyContact3)) {
+				throw new Exception("partycontact does not equal");
+			}
+			
+			logger.info(">>>>> START -> testInsert1PartyMatchAddressInTemp     [  OK  ]");
+			
 		} catch (Exception e) {
 			throw e;
 		} finally {
