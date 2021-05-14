@@ -34,7 +34,6 @@ public class TestApp {
 	private static final String CONFIG_FILE_NAME = "config.dev1.properties";
 	private static String BASE_URL = "http://localhost:8080/partycontact/v1.0";
 
-	private static int ADDRESS_ROLE_TYPE = 0;
 	private static int POLICY_HOLDER_ROLE_TYPE = 1;
 	private static int INSURED_LIST_ROLE_TYPE = 2;
 	private static int CONTRACT_BENE_ROLE_TYPE = 3;
@@ -61,17 +60,21 @@ public class TestApp {
 
 			app.testInit();
 
-			app.testInsert1Party(POLICY_HOLDER_ROLE_TYPE);
+			app.testInsert1NewParty(POLICY_HOLDER_ROLE_TYPE);
 
-			app.testInsert1Party(INSURED_LIST_ROLE_TYPE);
+			app.testInsert1NewParty(INSURED_LIST_ROLE_TYPE);
 
-			app.testInsert1Party(CONTRACT_BENE_ROLE_TYPE);
+			app.testInsert1NewParty(CONTRACT_BENE_ROLE_TYPE);
 
-			app.testInsert1Address();
+			app.testInsert1NewAddress();
 
 			app.testInsert1AddressMatchPartyWithoutAddress();
 
 			app.testInsert1PartyMatchAddressInTemp();
+
+			app.testInsert1PartyMatchPartyWithAddress1();
+			
+			app.updateAddress1();
 
 
 		} catch (Exception e) {
@@ -142,7 +145,7 @@ public class TestApp {
 			}
 		}
 	}
-	private void testInsert1Party(int roleType) throws Exception {
+	private void testInsert1NewParty(int roleType) throws Exception {
 		logger.info(">>>>> Start --> testInsert1Party roleType={}", roleType);
 
 		Connection sourceConn = null;
@@ -164,21 +167,24 @@ public class TestApp {
 
 			String initSrcTable = "";
 			String srcTable = "";
+			int roleTye = 0;
 
 			sql = "";
 			if (roleType == 1) {
 				initSrcTable = POLICY_HOLDER_SRC;
 				srcTable = config.sourceTablePolicyHolder;
+				roleTye = POLICY_HOLDER_ROLE_TYPE;
 			} else if (roleType == 2) {
 				initSrcTable = INSURED_LIST_SRC;
 				srcTable = config.sourceTableInsuredList;
+				roleTye = INSURED_LIST_ROLE_TYPE;
 			} else if (roleType == 3) {
 				initSrcTable = CONTRACT_BENE_SRC;
 				srcTable = config.sourceTableContractBene;
+				roleType = CONTRACT_BENE_ROLE_TYPE;
 			} else {
 				throw new Exception(">>>>> error roleType=" + roleType);
 			}
-
 
 			sql = "select list_id from " + initSrcTable;
 			pstmt = sourceConn.prepareStatement(sql);
@@ -398,7 +404,7 @@ public class TestApp {
 		return contactList;
 	}
 
-	private void testInsert1Address() throws Exception {
+	private void testInsert1NewAddress() throws Exception {
 		logger.info(">>>>> Start --> testInsert1Address ");
 
 		Connection sourceConn = null;
@@ -826,7 +832,7 @@ public class TestApp {
 					}
 				}	
 			}
-			
+
 			// insert into policy holder
 			String table = "";
 			if (POLICY_HOLDER_SRC.equals(partyTableSrc)) {
@@ -838,10 +844,10 @@ public class TestApp {
 			}
 			sql = "insert into " + table
 					+ " (select * from " + partyTableSrc + " where list_id = ?)";
-			
+
 			logger.info(">>> get table={}, partyTableSrc={}, list id={}, email={}", table, partyTableSrc, listId, email);
 
-			
+
 			pstmt = sourceConn.prepareStatement(sql);
 			pstmt.setLong(1, listId);
 			pstmt.executeUpdate();
@@ -853,15 +859,15 @@ public class TestApp {
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.setLong(1, addressIdInTemp);
 			rs = pstmt.executeQuery();
-			int count1 = 0;
+			boolean found = false;
 			while (rs.next()) {
-				count++;
+				found = true;
 				break;
 			}
 			rs.close();
 			pstmt.close();
 
-			if (count1 > 0) {
+			if (!found) {
 				throw new Exception("Error: record exists in partycontactTemp with address id=" + addressIdInTemp);
 			}
 			logger.info(">>> record removed in partycontactTemp with address id=" + addressIdInTemp);
@@ -871,7 +877,7 @@ public class TestApp {
 			logger.info(">>> sql={}, list id={}", sql, listId);
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.setLong(1, listId);
-			
+
 			PartyContact partyContact2 = null;
 			while (true) {
 				rs = pstmt.executeQuery();
@@ -896,7 +902,7 @@ public class TestApp {
 			}
 			rs.close();
 			pstmt.close();
-			
+
 			if (partyContact2 == null) {
 				throw new Exception("partyContact2 is null");
 			}
@@ -949,6 +955,277 @@ public class TestApp {
 			logger.info("partyContact3={}", ToStringBuilder.reflectionToString(partyContact3));
 			logger.info(">>>>> START -> testInsert1PartyMatchAddressInTemp     [  OK  ]");
 
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+		}
+	}
+	private void testInsert1PartyMatchPartyWithAddress1() throws Exception {
+		logger.info(">>>>>>>>>>>>>>>>>>>>> START -> testInsert1PartyMatchPartyWithAddress1");
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs;
+		String sql = "";
+		try {
+			Class.forName(config.sourceDbDriver);
+			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			Class.forName(config.sinkDbDriver);
+			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
+
+			sourceConn.setAutoCommit(false);
+			sinkConn.setAutoCommit(false);
+
+			/*
+			 * select c.list_id, d.list_id, c.address_id, c.address_1
+from 
+(
+select a.list_id, a.address_id, b.address_1 
+from test_t_policy_holder1 a
+inner join test_t_address1 b on a.address_id = b.address_id 
+) c
+inner join
+(
+select a.list_id, a.address_id, b.address_1 
+from test_t_insured_list1 a
+inner join test_t_address1 b on a.address_id = b.address_id
+) d
+on c.address_id = d.address_id;
+
+			 */
+			// policy_holder, list_id = 2668, address_id = 2907063
+			// policy_holder, list_id = 1875, address_id = 2907063
+			// insured_list, list_id = 12829474, address_id = 2907063
+			// insured_list, list_id = 12829474, address_id = 2907063
+
+			long selectedAddressId = 2907063;
+			long selectedPhListId1 = 2668;
+			long selectedIlListId1 = 12829474;
+			long selectedPhListId2 = 1875;
+
+			// make sure party contact does not exists with above list_id
+			sql = "select * from " + config.sinkTablePartyContact 
+					+ " where address_id = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedAddressId);
+			rs = pstmt.executeQuery();
+			boolean found = false;
+			while (rs.next()) {
+				found = true;
+			}
+			rs.close();
+			pstmt.close();
+
+			if (found) {
+				throw new Exception("party contact exists, address id=" + selectedAddressId);
+			}
+
+			// insert party policy_holder, list_id = 2668
+			sql = "insert into " + config.sourceTablePolicyHolder
+					+ " (select * from " + POLICY_HOLDER_SRC 
+					+ " where list_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedPhListId1);
+			pstmt.executeUpdate();
+			pstmt.close();
+
+			// insert address address_id = 2907063
+			sql = "insert into " + config.sourceTableAddress
+					+ " (select * from " + ADDRESS_SRC 
+					+ " where address_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedAddressId);
+			pstmt.executeUpdate();
+			pstmt.close();
+			
+			sourceConn.commit();
+
+			// insert insured_list, list_id = 12829474
+			sql = "insert into " + config.sourceTableInsuredList
+					+ " (select * from " + INSURED_LIST_SRC 
+					+ " where list_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedIlListId1);
+			pstmt.executeUpdate();
+			pstmt.close();
+
+
+			// insert policy_holder, list_id = 1875,
+			sql = "insert into " + config.sourceTablePolicyHolder
+					+ " (select * from " + POLICY_HOLDER_SRC 
+					+ " where list_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedPhListId2);
+			pstmt.executeUpdate();
+			pstmt.close();
+
+			sourceConn.commit();
+			
+			// verify
+			// get address info
+			sql = "select * from " + config.sourceTableAddress
+					+ " where address_id = ?";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedAddressId);
+			rs = pstmt.executeQuery();
+			String selectedAddress1 = null;
+			while (rs.next()) {
+				selectedAddress1 = rs.getString("ADDRESS_1");
+			}
+			pstmt.close();
+
+			// check partycontact
+			sql = "select * from " + config.sinkTablePartyContact
+					+ " where address_id = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedAddressId);
+			rs = pstmt.executeQuery();
+			List<PartyContact> contactList = new ArrayList<>();
+			while (rs.next()) {
+				PartyContact partyContact = new PartyContact();
+				partyContact.setAddress1(rs.getString("ADDRESS_1"));
+				partyContact.setAddressId(rs.getLong("ADDRESS_ID"));
+				partyContact.setCertiCode(rs.getString("CERTI_CODE"));
+				partyContact.setEmail(rs.getString("EMAIL"));
+				partyContact.setListId(rs.getLong("LIST_ID"));
+				partyContact.setMobileTel(rs.getString("MOBILE_TEL"));
+				partyContact.setName(rs.getString("NAME"));
+				partyContact.setPolicyId(rs.getLong("POLICY_ID"));
+				partyContact.setRoleType(rs.getInt("ROLE_TYPE"));
+				contactList.add(partyContact);
+			}
+			rs.close();
+			pstmt.close();
+
+			for (PartyContact contact : contactList) {
+				if (selectedPhListId1 == contact.getListId() || selectedPhListId2 == contact.getListId()) {
+					if (POLICY_HOLDER_ROLE_TYPE != contact.getRoleType().intValue()) {
+						throw new Exception(">>> roletype=" + contact.getRoleType().intValue() 
+								+ ",list id incorrect,listid=" + contact.getListId());
+					} 
+				} else if (selectedIlListId1 == contact.getListId()) {
+					if (INSURED_LIST_ROLE_TYPE != contact.getRoleType().intValue()) {
+						throw new Exception(">>> roletype=" + contact.getRoleType().intValue() 
+								+ ",list id incorrect,listid=" + contact.getListId());
+					} 
+				}
+				// check equal
+				PartyContact sourcePartyContact = getSourcePartyContactBy(sourceConn, contact.getRoleType(), contact.getListId(), contact.getAddress1());
+				if (contact.equals(sourcePartyContact)) {
+					logger.info(">>> party contact equal, list id={}", contact.getListId());
+				} else {
+					logger.info(">>> contact={}", ToStringBuilder.reflectionToString(contact));
+					logger.info(">>> sourcePartyContact={}", ToStringBuilder.reflectionToString(sourcePartyContact));
+					throw new Exception(">>> party contact NOT equal");
+				}
+				
+				if (contact.getAddressId().longValue() != selectedAddressId) {
+					throw new Exception(">>> selectedAddressId=" + selectedAddressId
+							+ ",contact address id=" + contact.getAddressId());
+				}
+				if (!StringUtils.equals(selectedAddress1, contact.getAddress1())) {
+					throw new Exception(">>> selectedAddress1=" + selectedAddress1
+							+ ",contact getAddress1 =" + contact.getAddress1());
+				}
+			}
+			logger.info(">>>>> END -> testInsert1PartyMatchPartyWithAddress1     [  OK  ]");
+
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+		}
+	}
+
+	private PartyContact getSourcePartyContactBy(Connection conn, int roleType, long listId, String address1) throws SQLException {
+		String table = "";
+		if (POLICY_HOLDER_ROLE_TYPE == roleType) {
+			table = config.sourceTablePolicyHolder;
+		} else if (INSURED_LIST_ROLE_TYPE == roleType) {
+			table = config.sourceTableInsuredList;
+		} else if (CONTRACT_BENE_ROLE_TYPE == roleType) {
+			table = config.sourceTableContractBene;
+		}
+		
+		String sql = "select * from " + table
+				+ " where list_id = ?";
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try {
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setLong(1, listId);
+			rs = pstmt.executeQuery();
+			PartyContact partyContact = new PartyContact();
+			while (rs.next()) {	
+				partyContact.setAddress1(address1);
+				partyContact.setAddressId(rs.getLong("ADDRESS_ID"));
+				partyContact.setCertiCode(rs.getString("CERTI_CODE"));
+				partyContact.setEmail(rs.getString("EMAIL"));
+				partyContact.setListId(rs.getLong("LIST_ID"));
+				partyContact.setMobileTel(rs.getString("MOBILE_TEL"));
+				partyContact.setName(rs.getString("NAME"));
+				partyContact.setPolicyId(rs.getLong("POLICY_ID"));
+				partyContact.setRoleType(roleType);
+			}
+			return partyContact;
+		} finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+		}
+	}
+	
+	private void updateAddress1() throws Exception {
+		logger.info(">>>>>>>>>>>>>>>>>>>>> START -> updateAddress1");
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs;
+		String sql = "";
+		try {
+			Class.forName(config.sourceDbDriver);
+			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			Class.forName(config.sinkDbDriver);
+			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
+
+			sourceConn.setAutoCommit(false);
+			sinkConn.setAutoCommit(false);
+			
+			
+			logger.info(">>>>> END -> updateAddress1     [  OK  ]");
+			
 		} catch (Exception e) {
 			throw e;
 		} finally {
