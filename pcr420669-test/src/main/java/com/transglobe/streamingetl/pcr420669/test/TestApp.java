@@ -68,7 +68,7 @@ public class TestApp {
 
 			//app.testSamples();
 
-			app.testRandomInsertSamples(10);
+			app.testRandomInsertSamples(1000);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -100,89 +100,94 @@ public class TestApp {
 			sourceConn.setAutoCommit(false);
 			sinkConn.setAutoCommit(false);
 
+			int total = 0;
+			for (int i = 0; i < 3; i++) {
+				if (i == 0) {
+					sql = "select count(*) as COUNT from " + POLICY_HOLDER_SRC;
+				} else if (i  == 1) {
+					sql = "select count(*) as COUNT from " + INSURED_LIST_SRC;
+				} else {
+					sql = "select count(*) as COUNT from " + CONTRACT_BENE_SRC;
+				}
+				pstmt = sourceConn.prepareStatement(sql);
+				rs = pstmt.executeQuery();
+				while (rs.next()) {
+					total = total + rs.getInt("COUNT");
+				}
+				rs.close();
+				pstmt.close();
+			}
+			logger.info(">>> total={}", total);
+
+			int sampleSize = (inputSampleSize == null)? total : inputSampleSize;
+			Random random = new Random(System.currentTimeMillis());
+			Set<Integer> offsetSet = new HashSet<>();
+
+			int i = 0;
+			while (i < sampleSize) {
+				Integer offset = random.nextInt(total) + 1;
+				if (!offsetSet.contains(offset)) {
+					offsetSet.add(offset);
+					i++;
+					logger.info(">>> i={}, offset={}", i, offset);
+				}
+			}
+			
 			// select list_ids
-			sql = "select 1 AS ROLE_TYPE, list_id, address_id from " + POLICY_HOLDER_SRC +"\n" + 
+			sql = "select 1 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + POLICY_HOLDER_SRC + " a inner join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
 					"union\n" + 
-					"select 2 AS ROLE_TYPE, list_id, address_id from " + INSURED_LIST_SRC + "\n" + 
+					"select 2 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + INSURED_LIST_SRC + " a inner join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
 					"union\n" + 
-					"select 3 AS ROLE_TYPE, list_id, address_id from " + CONTRACT_BENE_SRC;
+					"select 3 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + CONTRACT_BENE_SRC + " a inner join " + ADDRESS_SRC + " b on a.address_id = b.address_id" ; 
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery();
-			
+
 			List<Map<String, Object>> partymapList = new ArrayList<>();
-			Set<Long> addressIdSet = new HashSet<>();
+			List<Long> addressIdList = new ArrayList<>();
 			int count = 0;
-			int sampleSize = (inputSampleSize == null)? Integer.MAX_VALUE : inputSampleSize;
 			while (rs.next()) {
 				count++;
-				if (count > sampleSize) {
-					break;
-				}
-				Map<String, Object> partymap = new HashMap<>();
-				partymap.put("ROLE_TYPE", rs.getInt("ROLE_TYPE"));
-				partymap.put("LIST_ID", rs.getLong("LIST_ID"));
-				partymap.put("ADDRESS_ID", rs.getLong("ADDRESS_ID"));
-				partymapList.add(partymap);
-				
-				if (!addressIdSet.contains(rs.getLong("ADDRESS_ID"))) {
-					addressIdSet.add(rs.getLong("ADDRESS_ID"));
+				if (offsetSet.contains(count)) {
+					Map<String, Object> partymap = new HashMap<>();
+					partymap.put("ROLE_TYPE", rs.getInt("ROLE_TYPE"));
+					partymap.put("LIST_ID", rs.getLong("LIST_ID"));
+					partymap.put("ADDRESS_ID", rs.getLong("ADDRESS_ID"));
+					partymap.put("ADDRESS_1", rs.getString("ADDRESS_1"));
+					partymapList.add(partymap);
+					
+					addressIdList.add(rs.getLong("ADDRESS_ID"));
+				} else {
+					continue;
 				}
 			}
 			rs.close();
 			pstmt.close();
 
-			List<Long> addressIdList = new ArrayList<>(addressIdSet);
-			
 			Collections.shuffle(partymapList);
 			Collections.shuffle(addressIdList);
 			
-			logger.info(">>> partymapList size={}", partymapList.size());
-			logger.info(">>> addressIdList size={}", addressIdList.size());
-
-			Random random = new Random(System.currentTimeMillis());
-			int totalSize = partymapList.size() +  addressIdList.size();
-			int partyIndex = 0;
-			int addressIndex = 0;
-			for (int i = 0; i < totalSize; i++) {
-				int offset = random.nextInt(totalSize);
-				if (offset < partymapList.size()) {
-					if (partyIndex < partymapList.size()) {		
-						// insert party
-						Map<String, Object> partymap = partymapList.get(partyIndex);
-						Integer roleType = (Integer)partymap.get("ROLE_TYPE");
-						Long listId = (long)partymap.get("LIST_ID");
-						Long addressId = (long)partymap.get("ADDRESS_ID");
-						logger.info(">>> insert party i={}, partyIndex={}, offset={},roletype={}, listid={}, addressId={} ", 
-								i, partyIndex, offset, roleType, listId, addressId);
-						partyIndex++;
-					} else {
-						// insert address
-						Long addressId = addressIdList.get(addressIndex);
-						logger.info(">>>  insert address i={}, addressIndex={}, offset={},addressid={}", i, addressIndex, offset, addressId);
-						addressIndex++;
-					}
-					
-				} else if (offset >= partymapList.size()) {
-					if (addressIndex < addressIdList.size()) {	
-						// insert address
-						Long addressId = addressIdList.get(addressIndex);
-						logger.info(">>>  insert address i={}, addressIndex={}, offset={},addressid={}", i, addressIndex, offset, addressId);
-						addressIndex++;
-					} else {
-						// insert party
-						Map<String, Object> partymap = partymapList.get(partyIndex);
-						Integer roleType = (Integer)partymap.get("ROLE_TYPE");
-						Long listId = (long)partymap.get("LIST_ID");
-						Long addressId = (long)partymap.get("ADDRESS_ID");
-						logger.info(">>> insert party i={}, partyIndex={}, offset={},roletype={}, listid={}, addressId={} ", 
-								i, partyIndex, offset, roleType, listId, addressId);
-						partyIndex++;
-					}
+			Set<Long> insertAddressSet = new HashSet<>();
+			for (int k = 0; k < partymapList.size(); k++) {
+				Integer roleType = (Integer)partymapList.get(k).get("ROLE_TYPE");
+				Long listId = (Long)partymapList.get(k).get("LIST_ID");
+				
+				logger.info(">>> insert k={}, roletype={}, listid={}, address_id={} with address1={}, addressid2={} ", 
+						k, 
+						roleType, 
+						listId, 
+						partymapList.get(k).get("ADDRESS_ID"), 
+						partymapList.get(k).get("ADDRESS_1"), 
+						addressIdList.get(k));
+				
+				insertParty(sourceConn, roleType, listId);
+				
+				Long addressid = addressIdList.get(k);
+				if (!insertAddressSet.contains(addressid)) {
+					insertAddress(sourceConn, addressid);
+					insertAddressSet.add(addressid);
 				}
+				sourceConn.commit();
 			}
-
-			
-
 		} catch (Exception e) {
 			throw e;
 		} finally {
@@ -320,21 +325,17 @@ public class TestApp {
 
 			String initSrcTable = "";
 			String srcTable = "";
-			int roleTye = 0;
-
+			
 			sql = "";
 			if (roleType == 1) {
 				initSrcTable = POLICY_HOLDER_SRC;
 				srcTable = config.sourceTablePolicyHolder;
-				roleTye = POLICY_HOLDER_ROLE_TYPE;
 			} else if (roleType == 2) {
 				initSrcTable = INSURED_LIST_SRC;
 				srcTable = config.sourceTableInsuredList;
-				roleTye = INSURED_LIST_ROLE_TYPE;
 			} else if (roleType == 3) {
 				initSrcTable = CONTRACT_BENE_SRC;
 				srcTable = config.sourceTableContractBene;
-				roleType = CONTRACT_BENE_ROLE_TYPE;
 			} else {
 				throw new Exception(">>>>> error roleType=" + roleType);
 			}
@@ -1585,6 +1586,58 @@ on c.address_id = d.address_id;
 					throw e;
 				}
 			}
+		}
+	}
+	private void insertParty(Connection conn, Integer roleType, Long listId) throws SQLException {
+		String sql;
+		PreparedStatement pstmt = null;
+		try {
+			String srcTable = "";
+			String srcTable1 = "";
+			if (POLICY_HOLDER_ROLE_TYPE == roleType.intValue()) {
+				srcTable = config.sourceTablePolicyHolder;
+				srcTable1 = POLICY_HOLDER_SRC;
+			} else if (INSURED_LIST_ROLE_TYPE == roleType.intValue()) {
+				srcTable = config.sourceTableInsuredList;
+				srcTable1 = INSURED_LIST_SRC;
+			} else if (CONTRACT_BENE_ROLE_TYPE == roleType.intValue()) {
+				srcTable = config.sourceTableContractBene;
+				srcTable1 = CONTRACT_BENE_SRC;
+			}
+			sql = "insert into " + srcTable
+					+ " select * from " + srcTable1 + " where list_id = ?";
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setLong(1, listId);
+			pstmt.executeUpdate();
+			pstmt.close();
+
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			throw e;
+		} finally {
+			if (pstmt != null) pstmt.close();
+		}
+
+	}
+	private void insertAddress(Connection conn, Long addressId) throws SQLException {
+		String sql;
+		PreparedStatement pstmt = null;
+		try {
+
+			sql = "insert into " + config.sourceTableAddress
+					+ " select * from " + ADDRESS_SRC + " where address_id = ?";
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setLong(1, addressId);
+			pstmt.executeUpdate();
+			pstmt.close();
+
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			throw e;
+		} finally {
+			if (pstmt != null) pstmt.close();
 		}
 	}
 }
