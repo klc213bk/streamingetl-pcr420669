@@ -8,8 +8,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -31,7 +36,7 @@ import okhttp3.Response;
 public class TestApp {
 	private static final Logger logger = LoggerFactory.getLogger(TestApp.class);
 
-	private static final String CONFIG_FILE_NAME = "config.dev1.properties";
+	private static final String CONFIG_FILE_NAME = "config.dev2.properties";
 	private static String BASE_URL = "http://localhost:8080/partycontact/v1.0";
 
 	private static int POLICY_HOLDER_ROLE_TYPE = 1;
@@ -53,39 +58,187 @@ public class TestApp {
 	}
 
 	public static void main(String[] args) {
-		TestApp app;
 
+
+
+		TestApp app;
 		try {
+
 			app = new TestApp(CONFIG_FILE_NAME);
 
-			app.testInit();
+			//app.testSamples();
 
-			app.testInsert1NewParty(POLICY_HOLDER_ROLE_TYPE);
+			app.testRandomInsertSamples(10);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
-			app.testInsert1NewParty(INSURED_LIST_ROLE_TYPE);
 
-			app.testInsert1NewParty(CONTRACT_BENE_ROLE_TYPE);
+	}
+	public void testRandomInsertSamples(Integer inputSampleSize) throws Exception {
+		logger.info(">>>>>>>>>>>>>>>>>>>>> START -> testRandomInsertSamples");
 
-			app.testInsert1NewAddress();
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs;
+		String sql = "";
 
-			app.testInsert1AddressMatchPartyWithoutAddress();
+		try {
 
-			app.testInsert1PartyMatchAddressInTemp();
+			testInit();
 
-			app.testInsert1PartyMatchPartyWithAddress1();
+			Class.forName(config.sourceDbDriver);
+			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			Class.forName(config.sinkDbDriver);
+			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
+
+			sourceConn.setAutoCommit(false);
+			sinkConn.setAutoCommit(false);
+
+			// select list_ids
+			sql = "select 1 AS ROLE_TYPE, list_id, address_id from " + POLICY_HOLDER_SRC +"\n" + 
+					"union\n" + 
+					"select 2 AS ROLE_TYPE, list_id, address_id from " + INSURED_LIST_SRC + "\n" + 
+					"union\n" + 
+					"select 3 AS ROLE_TYPE, list_id, address_id from " + CONTRACT_BENE_SRC;
+			pstmt = sourceConn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
 			
-			app.updateAddress1();
+			List<Map<String, Object>> partymapList = new ArrayList<>();
+			Set<Long> addressIdSet = new HashSet<>();
+			int count = 0;
+			int sampleSize = (inputSampleSize == null)? Integer.MAX_VALUE : inputSampleSize;
+			while (rs.next()) {
+				count++;
+				if (count > sampleSize) {
+					break;
+				}
+				Map<String, Object> partymap = new HashMap<>();
+				partymap.put("ROLE_TYPE", rs.getInt("ROLE_TYPE"));
+				partymap.put("LIST_ID", rs.getLong("LIST_ID"));
+				partymap.put("ADDRESS_ID", rs.getLong("ADDRESS_ID"));
+				partymapList.add(partymap);
+				
+				if (!addressIdSet.contains(rs.getLong("ADDRESS_ID"))) {
+					addressIdSet.add(rs.getLong("ADDRESS_ID"));
+				}
+			}
+			rs.close();
+			pstmt.close();
+
+			List<Long> addressIdList = new ArrayList<>(addressIdSet);
+			
+			Collections.shuffle(partymapList);
+			Collections.shuffle(addressIdList);
+			
+			logger.info(">>> partymapList size={}", partymapList.size());
+			logger.info(">>> addressIdList size={}", addressIdList.size());
+
+			Random random = new Random(System.currentTimeMillis());
+			int totalSize = partymapList.size() +  addressIdList.size();
+			int partyIndex = 0;
+			int addressIndex = 0;
+			for (int i = 0; i < totalSize; i++) {
+				int offset = random.nextInt(totalSize);
+				if (offset < partymapList.size()) {
+					if (partyIndex < partymapList.size()) {		
+						// insert party
+						Map<String, Object> partymap = partymapList.get(partyIndex);
+						Integer roleType = (Integer)partymap.get("ROLE_TYPE");
+						Long listId = (long)partymap.get("LIST_ID");
+						Long addressId = (long)partymap.get("ADDRESS_ID");
+						logger.info(">>> insert party i={}, partyIndex={}, offset={},roletype={}, listid={}, addressId={} ", 
+								i, partyIndex, offset, roleType, listId, addressId);
+						partyIndex++;
+					} else {
+						// insert address
+						Long addressId = addressIdList.get(addressIndex);
+						logger.info(">>>  insert address i={}, addressIndex={}, offset={},addressid={}", i, addressIndex, offset, addressId);
+						addressIndex++;
+					}
+					
+				} else if (offset >= partymapList.size()) {
+					if (addressIndex < addressIdList.size()) {	
+						// insert address
+						Long addressId = addressIdList.get(addressIndex);
+						logger.info(">>>  insert address i={}, addressIndex={}, offset={},addressid={}", i, addressIndex, offset, addressId);
+						addressIndex++;
+					} else {
+						// insert party
+						Map<String, Object> partymap = partymapList.get(partyIndex);
+						Integer roleType = (Integer)partymap.get("ROLE_TYPE");
+						Long listId = (long)partymap.get("LIST_ID");
+						Long addressId = (long)partymap.get("ADDRESS_ID");
+						logger.info(">>> insert party i={}, partyIndex={}, offset={},roletype={}, listid={}, addressId={} ", 
+								i, partyIndex, offset, roleType, listId, addressId);
+						partyIndex++;
+					}
+				}
+			}
+
+			
+
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+		}
+		logger.info(">>>>>>>>>>>>>>>>>>>>> END -> testRandomInsertSamples");
+
+
+	}
+	public void testSamples() {
+
+		try {
+
+			testInit();
+
+			testInsert1NewParty(POLICY_HOLDER_ROLE_TYPE);
+
+			testInsert1NewParty(INSURED_LIST_ROLE_TYPE);
+
+			testInsert1NewParty(CONTRACT_BENE_ROLE_TYPE);
+
+			testInsert1NewAddress();
+
+			testInsert1AddressMatchPartyWithoutAddress();
+
+			testInsert1PartyMatchAddressInTemp();
+
+			testInsert1PartyMatchPartyWithAddress1();
+
+			updateAddress1ForPartyContact();
+
+			updateContactForPartyContact(POLICY_HOLDER_ROLE_TYPE, "EMAIL", "klc213@gmail.com");
+
+			updateContactForPartyContact(INSURED_LIST_ROLE_TYPE, "MOBILE_TEL", "0909906222");
+
+			updateContactForPartyContact(CONTRACT_BENE_ROLE_TYPE, "MOBILE_TEL", "0938383838");
 
 
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 			logger.error(e.getMessage());
-		}
-
-
-
-
+		} 
 	}
 	private void testInit() throws Exception {
 		Connection sourceConn = null;
@@ -1054,7 +1207,7 @@ on c.address_id = d.address_id;
 			pstmt.setLong(1, selectedAddressId);
 			pstmt.executeUpdate();
 			pstmt.close();
-			
+
 			sourceConn.commit();
 
 			// insert insured_list, list_id = 12829474
@@ -1077,7 +1230,7 @@ on c.address_id = d.address_id;
 			pstmt.close();
 
 			sourceConn.commit();
-			
+
 			// verify
 			// get address info
 			sql = "select * from " + config.sourceTableAddress
@@ -1135,7 +1288,7 @@ on c.address_id = d.address_id;
 					logger.info(">>> sourcePartyContact={}", ToStringBuilder.reflectionToString(sourcePartyContact));
 					throw new Exception(">>> party contact NOT equal");
 				}
-				
+
 				if (contact.getAddressId().longValue() != selectedAddressId) {
 					throw new Exception(">>> selectedAddressId=" + selectedAddressId
 							+ ",contact address id=" + contact.getAddressId());
@@ -1176,7 +1329,7 @@ on c.address_id = d.address_id;
 		} else if (CONTRACT_BENE_ROLE_TYPE == roleType) {
 			table = config.sourceTableContractBene;
 		}
-		
+
 		String sql = "select * from " + table
 				+ " where list_id = ?";
 		PreparedStatement pstmt = null;
@@ -1203,9 +1356,8 @@ on c.address_id = d.address_id;
 			if (pstmt != null) pstmt.close();
 		}
 	}
-	
-	private void updateAddress1() throws Exception {
-		logger.info(">>>>>>>>>>>>>>>>>>>>> START -> updateAddress1");
+	private void updateContactForPartyContact(int roleType, String updateField, String updateValue) throws Exception {
+		logger.info(">>>>>>>>>>>>>>>>>>>>> START -> updateContactForPartyContact");
 		Connection sourceConn = null;
 		Connection sinkConn = null;
 		PreparedStatement pstmt = null;
@@ -1222,10 +1374,200 @@ on c.address_id = d.address_id;
 
 			sourceConn.setAutoCommit(false);
 			sinkConn.setAutoCommit(false);
-			
-			
-			logger.info(">>>>> END -> updateAddress1     [  OK  ]");
-			
+
+			// select party contact with role type
+			sql = "select * from t_party_contact where role_type = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setInt(1, roleType);
+			rs = pstmt.executeQuery();
+			List<Long> selectedListIdList = new ArrayList<>();
+			while (rs.next()) {
+				selectedListIdList.add(rs.getLong("LIST_ID"));
+			}
+			rs.close();
+			pstmt.close();
+
+			if (selectedListIdList.size() == 0) {
+				throw new Exception("no party contact record for role type=" + roleType);
+			}
+			Random random = new Random(System.currentTimeMillis());
+			int offset  = random.nextInt(selectedListIdList.size());
+			Long selectListId = selectedListIdList.get(offset);
+
+			// select from source table
+			String table = null;
+			if (POLICY_HOLDER_ROLE_TYPE == roleType) {
+				table = config.sourceTablePolicyHolder;
+			} else if (INSURED_LIST_ROLE_TYPE == roleType) {
+				table = config.sourceTableInsuredList;
+			} else if (CONTRACT_BENE_ROLE_TYPE == roleType) {
+				table = config.sourceTableContractBene;
+			}
+			sql = "";
+			if (StringUtils.equals("EMAIL", updateField)) {
+				sql = "update " + table + " set EMAIL = ? where list_id = ?";	
+			} else if (StringUtils.equals("MOBILE_TEL", updateField)) {
+				sql = "update " + table + " set MOBILE_TEL = ? where list_id = ?";	
+			} 
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setString(1, updateValue);
+			pstmt.setLong(2, selectListId);
+			pstmt.executeUpdate();
+			pstmt.close();
+			sourceConn.commit();
+
+			// verify
+			sql = "select * from " + config.sinkTablePartyContact + " where role_type=? and list_id = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setInt(1, roleType);
+			pstmt.setLong(2, selectListId);
+			boolean found = false;
+			String queryValue = null;
+			while (true) {
+				rs = pstmt.executeQuery();
+				while (rs.next()) {
+					if (StringUtils.equals("EMAIL", updateField)) {
+						queryValue = rs.getString("EMAIL");	
+					} else if (StringUtils.equals("MOBILE_TEL", updateField)) {
+						queryValue = rs.getString("MOBILE_TEL");	
+					} 
+					if (!StringUtils.equals(updateValue, queryValue)) {
+						logger.error(">>> no match updateAddress1={}, queryValue={}", updateValue, queryValue);
+
+						break;
+					}
+					found = true;
+				}
+				if (found) {
+					logger.info(">>> update value update match!!");
+					break;
+				} else  {
+					logger.info(">>> Wait for 2 seconds");
+					Thread.sleep(2000);
+				}
+			}
+			rs.close();
+			pstmt.close();
+
+
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+		}
+		logger.info(">>>>>>>>>>>>>>>>>>>>> END -> updateContactForPartyContact");
+	}
+	private void updateAddress1ForPartyContact() throws Exception {
+		logger.info(">>>>>>>>>>>>>>>>>>>>> START -> updateAddress1ForPartyContact");
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs;
+		String sql = "";
+		try {
+			Class.forName(config.sourceDbDriver);
+			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			Class.forName(config.sinkDbDriver);
+			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
+
+			sourceConn.setAutoCommit(false);
+			sinkConn.setAutoCommit(false);
+
+			// update partycontact address
+			sql = "select * from " + config.sinkTablePartyContact+ " where address_1 is not null";
+			pstmt = sinkConn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
+			String address1 = null;
+			Long addressId = null;
+			while (rs.next()) {
+				address1 = rs.getString("ADDRESS_1");
+				addressId = rs.getLong("ADDRESS_ID");
+				break;
+			}
+			rs.close();
+			pstmt.close();
+			if (addressId == null) {
+				throw new Exception("Record not found for address1 is null");
+			}
+
+			// select from source table
+			sql = "select * from " + config.sourceTableAddress + " where address_id = ?";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, addressId);
+			rs = pstmt.executeQuery();
+			String srcAddress1 = null;
+			Long srcAddressId = null;
+			while (rs.next()) {
+				srcAddress1 = rs.getString("ADDRESS_1");
+				srcAddressId = rs.getLong("ADDRESS_ID");
+				break;
+			}
+			rs.close();
+			pstmt.close();
+
+			if (srcAddressId == null) {
+				throw new Exception("Record not found for addressid :" + addressId);
+			}
+
+			// update address
+			String updateAddress1 = "新竹市長春街167像";
+			sql = "update " + config.sourceTableAddress 
+					+ " set address_1 = ? where address_id =?";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setString(1, updateAddress1);
+			pstmt.setLong(2, addressId);
+			pstmt.executeUpdate();
+			pstmt.close();
+
+			sourceConn.commit();
+
+			// verify
+			sql = "select * from " + config.sinkTablePartyContact + " where address_id = ?";
+			logger.info(">>> sql={}, addressid={}", sql, addressId);
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setLong(1, addressId);
+
+			boolean found = false;
+			while (true) {
+				rs = pstmt.executeQuery();
+				while (rs.next()) {
+					if (!StringUtils.equals(updateAddress1, rs.getString("ADDRESS_1"))) {
+						logger.error(">>> no match updateAddress1={}, ADDRESS_1={}", updateAddress1, rs.getString("ADDRESS_1"));
+
+						break;
+					}
+					found = true;
+				}
+				if (found) {
+					logger.info(">>> address1 update match!!");
+					break;
+				} else  {
+					logger.info(">>> Wait for 2 seconds");
+					Thread.sleep(2000);
+				}
+			}
+			rs.close();
+			pstmt.close();
+
+
+			logger.info(">>>>> END -> updateAddress1ForPartyContact     [  OK  ]");
+
 		} catch (Exception e) {
 			throw e;
 		} finally {

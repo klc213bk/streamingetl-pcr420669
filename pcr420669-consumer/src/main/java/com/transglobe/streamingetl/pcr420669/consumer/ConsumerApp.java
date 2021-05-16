@@ -93,7 +93,7 @@ public class ConsumerApp {
 		props.setProperty("enable.auto.commit", "true");
 		props.setProperty("auto.commit.interval.ms", "1000");
 		props.setProperty("max.poll.interval.ms", "120000");
-		props.setProperty("session.timeout.ms", "300000");
+		props.setProperty("session.timeout.ms", "120000");
 		props.setProperty("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 		props.setProperty("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 
@@ -128,15 +128,15 @@ public class ConsumerApp {
 								if ("INSERT".equals(operation)) {
 									logger.info("   >>>doInsert");
 									doInsert(conn, objectMapper, payload);
-
+									logger.info("   >>>doInsert DONE!!!");
 								} else if ("UPDATE".equals(operation)) {
 									logger.info("   >>>doUpdate");
 									doUpdate(conn, objectMapper, payload);
-
+									logger.info("   >>>doUpdate DONE!!!");
 								} else if ("DELETE".equals(operation)) {
 									logger.info("   >>>doDelete");
 									doDelete(conn, objectMapper, payload);
-
+									logger.info("   >>>doDelete DONE!!!");
 								}
 
 							} catch (Exception e) {
@@ -303,8 +303,7 @@ public class ConsumerApp {
 		logger.info(">>> fulltableName={}", fullTableName);
 		String data = payload.get("data").toString();
 		String before = payload.get("before").toString();
-		String sql = "";
-
+		
 		if (config.sourceTablePolicyHolder.equals(fullTableName)
 				|| config.sourceTableInsuredList.equals(fullTableName)
 				|| config.sourceTableContractBene.equals(fullTableName)) {
@@ -556,7 +555,8 @@ public class ConsumerApp {
 			} 
 			// update address1
 			sql = "update " + config.sinkTablePartyContact + " set ADDRESS_1 = ? where role_type = ? and list_id = ?";
-			logger.info(">>> update={}", sql);
+			logger.info(">>> update={}, ADDRESS_1={},role_type={}, list_id={}", 
+					sql, address1, partyContact.getRoleType(), partyContact.getListId());
 
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setString(1, address1);

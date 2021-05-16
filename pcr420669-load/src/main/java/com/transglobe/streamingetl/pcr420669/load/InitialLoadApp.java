@@ -91,7 +91,12 @@ public class InitialLoadApp {
 	}
 	public static void main(String[] args) {
 		logger.info(">>> start run InitialLoadApp");
-
+		
+		boolean loaddata = false;
+		if (args.length != 0 && StringUtils.equals("loaddata", args[0])) {
+			loaddata = true;
+		}
+		
 		String profileActive = System.getProperty("profile.active", "");
 		logger.info(">>>>>profileActive={}", profileActive);
 		try {
@@ -108,7 +113,9 @@ public class InitialLoadApp {
 			app.createTable(app.config.sinkTablePartyContact, createTableFile);
 			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
 
-	//		app.run();
+			if (loaddata) {
+				app.run();
+			}
 
 			app.close();
 
