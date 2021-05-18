@@ -47,8 +47,8 @@ import org.slf4j.LoggerFactory;
  * @author oracle
  *
  */
-public class InitialLoadApp {
-	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp.class);
+public class InitialLoadApp2 {
+	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp2.class);
 
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
@@ -69,7 +69,7 @@ public class InitialLoadApp {
 	}
 	private Config config;
 
-	public InitialLoadApp(String fileName) throws Exception {
+	public InitialLoadApp2(String fileName) throws Exception {
 		config = Config.getConfig(fileName);
 		//	this.createTableFile = createTableFile;
 
@@ -117,20 +117,20 @@ public class InitialLoadApp {
 			String createTableFile = StringUtils.isBlank(profileActive)? CREATE_TABLE_FILE_NAME : profileActive + "/" + CREATE_TABLE_FILE_NAME;
 			String createTempTableFile = StringUtils.isBlank(profileActive)? CREATE_TEMP_TABLE_FILE_NAME : profileActive + "/" + CREATE_TEMP_TABLE_FILE_NAME;
 
-			InitialLoadApp app = new InitialLoadApp(configFile);
+			InitialLoadApp2 app = new InitialLoadApp2(configFile);
 
 			// create sink table
-			logger.info(">>>  Start: dropTable, tableName={}", app.config.sinkTablePartyContact);
-			app.dropTable(app.config.sinkTablePartyContact);
-			app.dropTable(app.config.sinkTablePartyContactTemp);
-			logger.info(">>>  End: dropTable DONE!!!");
-
-			logger.info(">>>  Start: createTable, tableName={}, createTableFile={}", app.config.sinkTablePartyContact, createTableFile);			
-			app.createTable(app.config.sinkTablePartyContact, createTableFile);
-			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
-			logger.info(">>>  End: createTable DONE!!!");
-
-			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
+			//			logger.info(">>>  Start: dropTable, tableName={}", app.config.sinkTablePartyContact);
+			//			app.dropTable(app.config.sinkTablePartyContact);
+			//			app.dropTable(app.config.sinkTablePartyContactTemp);
+			//			logger.info(">>>  End: dropTable DONE!!!");
+			//
+			//			logger.info(">>>  Start: createTable, tableName={}, createTableFile={}", app.config.sinkTablePartyContact, createTableFile);			
+			//			app.createTable(app.config.sinkTablePartyContact, createTableFile);
+			//			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
+			//			logger.info(">>>  End: createTable DONE!!!");
+			//
+			//			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
 
 			if (loaddata) {
 				app.run();
@@ -138,9 +138,9 @@ public class InitialLoadApp {
 			logger.info("run load data span={}, ", (System.currentTimeMillis() - t0));
 
 			// create indexes
-			app.runCreateIndexes();
+			//			app.runCreateIndexes();
 
-		
+
 			app.close();
 
 
@@ -238,15 +238,15 @@ public class InitialLoadApp {
 					pstmt.clearBatch();
 				}
 			}
-						if (startSeq % 50000000 == 0) {
-			//				
-							cnsl = System.console();
-			//				logger.info("   >>>roletype={}, startSeq={}, count={}, span={} ", roleType, startSeq, count, (System.currentTimeMillis() - t0));
-							cnsl.printf("   >>>roletype=%d, startSeq=%d, count=%d \n", roleType, startSeq, count);
+			if (startSeq % 50000000 == 0) {
+				//				
+				cnsl = System.console();
+				//				logger.info("   >>>roletype={}, startSeq={}, count={}, span={} ", roleType, startSeq, count, (System.currentTimeMillis() - t0));
+				cnsl.printf("   >>>roletype=%d, startSeq=%d, count=%d \n", roleType, startSeq, count);
 
-			//				cnsl.printf("   >>>roletype=" + roleType + ", startSeq=" + startSeq + ", count=" + count +", span=" + ",span=" + (System.currentTimeMillis() - t0));
-							cnsl.flush();
-						}
+				//				cnsl.printf("   >>>roletype=" + roleType + ", startSeq=" + startSeq + ", count=" + count +", span=" + ",span=" + (System.currentTimeMillis() - t0));
+				cnsl.flush();
+			}
 
 			pstmt.executeBatch();
 			if (pstmt != null) pstmt.close();
@@ -279,21 +279,90 @@ public class InitialLoadApp {
 
 		ExecutorService executor = Executors.newFixedThreadPool(THREADS);
 
+		String sql = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
 		try {
 
 			Connection sourceConn = this.sourceConnectionPool.getConnection();
-			Statement stmt = sourceConn.createStatement();
-			ResultSet resultSet  = stmt.executeQuery("select max(address_id) as MAX_ADDRESS_ID from " + config.sourceTableAddress);
+
+			/*Statement stmt = sourceConn.createStatement();
+			resultSet  = stmt.executeQuery("select max(address_id) as MAX_ADDRESS_ID from " + config.sourceTableAddress);
 			Long maxSeq = 0L;
 			while (resultSet.next()) {
-				maxSeq = resultSet.getLong("MAX_ADDRESS_ID");
+				maxSeq = rs.getLong("MAX_ADDRESS_ID");
 			}
 			maxSeq = maxSeq++;
 			resultSet.close();
 			stmt.close();
 			sourceConn.close();
 			logger.info(">>> max address id={}", maxSeq);
+			 */
+			String table = null;
+			for (int i = 0; i < 3; i++) {
+				if ( i == 0) {
+					table = config.sourceTablePolicyHolder;
+				} else if ( i == 1) {
+					table = config.sourceTableInsuredList;
+				} else if ( i == 2) {
+					table = config.sourceTableContractBene;
+				}
+				sql = "select max(a.address_id) as MAX_ADDRESS_ID from " + table + " a inner join t_address b on a.address_id = b.address_id ";
+				pstmt = sourceConn.prepareStatement(sql);
+				rs = pstmt.executeQuery();
+				long maxAddressId = 0;
+				while (rs.next()) {
+					maxAddressId = rs.getLong("MAX_ADDRESS_ID");
+				}
+				rs.close();
+				pstmt.close();
 
+				long stepSize = 10000000;
+				long startIndex = 0;
+
+				int totalPartyCount = 0;
+				List<LoadBean> loadBeanList = new ArrayList<>();
+				while (startIndex <= maxAddressId) {
+					long endIndex = startIndex + stepSize;
+
+					sql = "select count(*) as party_count from " + table + " a inner join t_address b on a.address_id = b.address_id "
+							+ " where a.address_id >= ? and a.address_id < ?";
+					pstmt = sourceConn.prepareStatement(sql);
+					pstmt.setLong(1, startIndex);
+					pstmt.setLong(2, endIndex);
+					rs = pstmt.executeQuery();
+					int partyCount = 0;
+					while (rs.next()) {
+						partyCount = rs.getInt("PARTY_COUNT");
+					}	
+					rs.close();
+					pstmt.close();
+
+					//	logger.info("partyCount={}", partyCount);
+					totalPartyCount +=  partyCount;
+
+					if (partyCount > 0) {
+						int div = 10;
+						long subStepSize = stepSize / 10;
+						for (int j = 0; j < div; j++) {
+							LoadBean loadBean = new LoadBean();
+							loadBean.fullTableName = config.sourceTablePolicyHolder;
+							loadBean.roleType = 1;
+							loadBean.startSeq = startIndex + j * subStepSize;
+							loadBean.endSeq = startIndex + (j + 1) * subStepSize;
+							loadBeanList.add(loadBean);
+
+							//	logger.info("startSeq={}, endSeq={}", loadBean.startSeq, loadBean.endSeq);
+
+						}
+					}
+
+					startIndex = endIndex;
+				}
+
+				logger.info("table={}, size={}, total partyCount={}", table, loadBeanList.size(), totalPartyCount);
+			}
+			/*
 			List<String> fullTableNameList = new ArrayList<>();
 			fullTableNameList.add(config.sourceTablePolicyHolder);
 			fullTableNameList.add(config.sourceTableInsuredList);
@@ -353,7 +422,7 @@ public class InitialLoadApp {
 				//							sourceTable, sinkTable, returnCode, recordCount, errormsg, stackTrace);
 				//				}
 			}
-
+			 */
 
 		} finally {
 			if (executor != null) executor.shutdown();
@@ -395,7 +464,7 @@ public class InitialLoadApp {
 	}
 
 	private Integer createIndex(String sql) {
-		
+
 		Connection sinkConn = null;
 		Statement stmt = null;
 		int ret = 0;
@@ -416,26 +485,26 @@ public class InitialLoadApp {
 		}
 		return ret;
 	}
-	
+
 	private void runCreateIndexes() {
 
 		long t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + config.sinkTablePartyContact + " (MOBILE_TEL) INLINE_SIZE 10 PARALLEL 8");
 		logger.info(">>>>> create index mobile span={}", (System.currentTimeMillis() - t0));
-		
+
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + config.sinkTablePartyContact + " (EMAIL)  INLINE_SIZE 20 PARALLEL 8");
 		logger.info(">>>>> create index email span={}", (System.currentTimeMillis() - t0));
-		
+
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + config.sinkTablePartyContact + " (ADDRESS_ID) PARALLEL 8");
 		logger.info(">>>>> create index address id span={}", (System.currentTimeMillis() - t0));
-		
+
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + config.sinkTablePartyContactTemp + " (ADDRESS_ID) PARALLEL 8");
 		logger.info(">>>>> create index temp address id span={}", (System.currentTimeMillis() - t0));
-		
-		
+
+
 		/*
 		List<String> indexSqlList = new ArrayList<>();
 		indexSqlList.add("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + config.sinkTablePartyContact + " (MOBILE_TEL)");
@@ -451,6 +520,6 @@ public class InitialLoadApp {
 
 
 		List<Integer> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
-*/
+		 */
 	}
 }
