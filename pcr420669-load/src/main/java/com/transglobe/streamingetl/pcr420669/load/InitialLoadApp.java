@@ -390,11 +390,11 @@ public class InitialLoadApp {
 			sinkConn = this.sinkConnectionPool.getConnection();
 			stmt = sinkConn.createStatement();
 			logger.info(">>>  Start: createIndex IDX_PARTY_CONTACT_1");
-			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL) INLINE_SIZE 10");
 			logger.info(">>>  End: createIndex IDX_PARTY_CONTACT_1 DONE!!!");
 			
 			logger.info(">>>  Start: createIndex IDX_PARTY_CONTACT_2");
-			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + this.config.sinkTablePartyContact + " (EMAIL)");
+			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + this.config.sinkTablePartyContact + " (EMAIL) INLINE_SIZE 20");
 			logger.info(">>>  End: createIndex IDX_PARTY_CONTACT_2 DONE!!!");
 			
 			logger.info(">>>  Start: createIndex IDX_PARTY_CONTACT_3");
