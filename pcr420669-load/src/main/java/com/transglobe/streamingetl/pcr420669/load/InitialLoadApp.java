@@ -37,6 +37,12 @@ import org.apache.ignite.Ignition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * InitialLoadApp [loaddata]
+ * 
+ * @author oracle
+ *
+ */
 public class InitialLoadApp {
 	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp.class);
 
@@ -44,9 +50,9 @@ public class InitialLoadApp {
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_TEMP_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT_TEMP.sql";
 
-	private static final int THREADS = 10;
+	private static final int THREADS = 20;
 
-	private static final long SEQ_INTERVAL = 1000000L;
+	private static final long SEQ_INTERVAL = 2000000L;
 
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
@@ -107,16 +113,33 @@ public class InitialLoadApp {
 			InitialLoadApp app = new InitialLoadApp(configFile);
 
 			// create sink table
+			logger.info(">>>  Start: dropTable, tableName={}", app.config.sinkTablePartyContact);
 			app.dropTable(app.config.sinkTablePartyContact);
 			app.dropTable(app.config.sinkTablePartyContactTemp);
+			logger.info(">>>  End: dropTable DONE!!!");
 
+			logger.info(">>>  Start: createTable, tableName={}, createTableFile={}", app.config.sinkTablePartyContact, createTableFile);			
 			app.createTable(app.config.sinkTablePartyContact, createTableFile);
 			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
+			logger.info(">>>  End: createTable DONE!!!");
+			
 
+			
 			if (loaddata) {
 				app.run();
 			}
+			
+			// set email to null, if roletype= 3 (t_contract_bene)
+			logger.info(">>>  Start: setContractBeneEmailNull");
+			app.setContractBeneEmailNull();
+			logger.info(">>>  End: setContractBeneEmailNull DONE!!!");
 
+            // create indexes
+			logger.info(">>>  Start: createIndexes");		
+			app.createIndexes();
+			logger.info(">>>  End: createIndexes DONE!!!");
+			
+			
 			app.close();
 
 			System.exit(0);
@@ -208,8 +231,9 @@ public class InitialLoadApp {
 					pstmt.clearBatch();
 				}
 			}
-			logger.info("   >>>roletype={}, startSeq={}, count={}, span={} ", roleType, startSeq, count, (System.currentTimeMillis() - t0));
-
+			if (startSeq % 10000000 == 0) {
+				logger.info("   >>>roletype={}, startSeq={}, count={}, span={} ", roleType, startSeq, count, (System.currentTimeMillis() - t0));
+			}
 			pstmt.executeBatch();
 			if (pstmt != null) pstmt.close();
 			if (count > 0) sinkConn.commit(); 
@@ -319,61 +343,6 @@ public class InitialLoadApp {
 				//				}
 			}
 
-            // create indexes
-			createIndexes();
-			
-			// check correction
-			// sink
-			Long t1 = System.currentTimeMillis();
-			Connection sinkConn = this.sinkConnectionPool.getConnection();
-			stmt = sinkConn.createStatement();
-			resultSet = stmt.executeQuery("select count(*) as SINK_COUNT from " + this.config.sinkTablePartyContact );
-			Long sinkCount = 0L;
-			while (resultSet.next()) {
-				sinkCount = resultSet.getLong("SINK_COUNT");
-			}
-			resultSet.close();
-			stmt.close();
-			sinkConn.close();
-
-			// source 1
-			sourceConn = this.sourceConnectionPool.getConnection();
-			stmt = sourceConn.createStatement();
-			resultSet = stmt.executeQuery("select count(*) as SOURCE_COUNT1 from " + this.config.sourceTablePolicyHolder + " a inner join " + this.config.sourceTableAddress + " b on a.address_id = b.address_id" );
-			Long sourceCount1 = 0L;
-			while (resultSet.next()) {
-				sourceCount1 = resultSet.getLong("SOURCE_COUNT1");
-			}
-			resultSet.close();
-			stmt.close();
-			sourceConn.close();
-
-			// source 2
-			sourceConn = this.sourceConnectionPool.getConnection();
-			stmt = sourceConn.createStatement();
-			resultSet = stmt.executeQuery("select count(*) as SOURCE_COUNT2 from " + this.config.sourceTableInsuredList + " a inner join " + this.config.sourceTableAddress + " b on a.address_id = b.address_id" );
-			Long sourceCount2 = 0L;
-			while (resultSet.next()) {
-				sourceCount2 = resultSet.getLong("SOURCE_COUNT2");
-			}
-			resultSet.close();
-			stmt.close();
-			sourceConn.close();
-
-			// source 3
-			sourceConn = this.sourceConnectionPool.getConnection();
-			stmt = sourceConn.createStatement();
-			resultSet = stmt.executeQuery("select count(*) as SOURCE_COUNT3 from " + this.config.sourceTableContractBene + " a inner join " + this.config.sourceTableAddress + " b on a.address_id = b.address_id" );
-			Long sourceCount3 = 0L;
-			while (resultSet.next()) {
-				sourceCount3 = resultSet.getLong("SOURCE_COUNT3");
-			}
-			resultSet.close();
-			stmt.close();
-			sourceConn.close();
-
-			Long sourceTotal = sourceCount1 + sourceCount2 + sourceCount3;
-			logger.info("sink count={}, source total={}, count1={}, count2={}, count3={}, span={}", sinkCount, sourceTotal, sourceCount1, sourceCount2, sourceCount3, (System.currentTimeMillis() - t1)); 
 
 		} finally {
 			if (executor != null) executor.shutdown();
@@ -381,7 +350,6 @@ public class InitialLoadApp {
 		}
 	}
 	private void dropTable(String tableName) throws SQLException {
-		logger.info(">>>  dropTable, tableName={}", tableName);
 		Connection conn = sinkConnectionPool.getConnection();
 
 		Statement stmt = null;
@@ -398,7 +366,6 @@ public class InitialLoadApp {
 		}
 	}
 	private void createTable(String tableName, String createTableFile) throws Exception {
-		logger.info(">>>  createTable, tableName={}, createTableFile={}", tableName, createTableFile);
 		Connection conn = sinkConnectionPool.getConnection();
 
 		Statement stmt = null;
@@ -422,12 +389,41 @@ public class InitialLoadApp {
 		try {
 			sinkConn = this.sinkConnectionPool.getConnection();
 			stmt = sinkConn.createStatement();
+			logger.info(">>>  Start: createIndex IDX_PARTY_CONTACT_1");
 			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + this.config.sinkTablePartyContact + " (MOBILE_TEL)");
+			logger.info(">>>  End: createIndex IDX_PARTY_CONTACT_1 DONE!!!");
+			
+			logger.info(">>>  Start: createIndex IDX_PARTY_CONTACT_2");
 			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + this.config.sinkTablePartyContact + " (EMAIL)");
+			logger.info(">>>  End: createIndex IDX_PARTY_CONTACT_2 DONE!!!");
+			
+			logger.info(">>>  Start: createIndex IDX_PARTY_CONTACT_3");
 			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + this.config.sinkTablePartyContact + " (ADDRESS_ID)");
+			logger.info(">>>  End: createIndex IDX_PARTY_CONTACT_3 DONE !!!");
+			
+			logger.info(">>>  Start: createIndex IDX_PARTY_CONTACT_TEMP_1");
 			stmt.executeUpdate("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + this.config.sinkTablePartyContactTemp + " (ADDRESS_ID)");
+			logger.info(">>>  End: createIndex IDX_PARTY_CONTACT_TEMP_1 DONE!!!");
+			
 		} finally {
 			if (stmt != null) stmt.close();
+			if (sinkConn != null) sinkConn.close();
+		}
+	}
+	private void setContractBeneEmailNull() throws SQLException {
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		String sql = "";
+		try {
+			sinkConn = this.sinkConnectionPool.getConnection();
+			sql = "update " + this.config.sinkTablePartyContact 
+					+ " set email = null where role_type = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setInt(1, 3);
+			pstmt.executeUpdate();
+			pstmt.close();
+		} finally {
+			if (pstmt != null) pstmt.close();
 			if (sinkConn != null) sinkConn.close();
 		}
 	}
