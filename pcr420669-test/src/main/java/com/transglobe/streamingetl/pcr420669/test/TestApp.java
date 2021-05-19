@@ -1,5 +1,6 @@
 package com.transglobe.streamingetl.pcr420669.test;
 
+import java.io.Console;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -36,7 +37,7 @@ import okhttp3.Response;
 public class TestApp {
 	private static final Logger logger = LoggerFactory.getLogger(TestApp.class);
 
-	private static final String CONFIG_FILE_NAME = "config.dev2.properties";
+	private static final String CONFIG_FILE_NAME = "config.dev1.properties";
 	private static String BASE_URL = "http://localhost:8080/partycontact/v1.0";
 
 	private static int POLICY_HOLDER_ROLE_TYPE = 1;
@@ -66,7 +67,7 @@ public class TestApp {
 
 			app = new TestApp(CONFIG_FILE_NAME);
 
-			//app.testSamples();
+			//			app.testSamples();
 
 			app.testRandomInsertSamples(1000);
 		} catch (Exception e) {
@@ -86,7 +87,7 @@ public class TestApp {
 		String sql = "";
 
 		try {
-
+	
 			testInit();
 
 			Class.forName(config.sourceDbDriver);
@@ -132,7 +133,7 @@ public class TestApp {
 					logger.info(">>> i={}, offset={}", i, offset);
 				}
 			}
-			
+
 			// select list_ids
 			sql = "select 1 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + POLICY_HOLDER_SRC + " a inner join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
 					"union\n" + 
@@ -154,7 +155,7 @@ public class TestApp {
 					partymap.put("ADDRESS_ID", rs.getLong("ADDRESS_ID"));
 					partymap.put("ADDRESS_1", rs.getString("ADDRESS_1"));
 					partymapList.add(partymap);
-					
+
 					addressIdList.add(rs.getLong("ADDRESS_ID"));
 				} else {
 					continue;
@@ -165,12 +166,13 @@ public class TestApp {
 
 			Collections.shuffle(partymapList);
 			Collections.shuffle(addressIdList);
-			
+
 			Set<Long> insertAddressSet = new HashSet<>();
+			Long lastInsertAddressid = null;
 			for (int k = 0; k < partymapList.size(); k++) {
 				Integer roleType = (Integer)partymapList.get(k).get("ROLE_TYPE");
 				Long listId = (Long)partymapList.get(k).get("LIST_ID");
-				
+
 				logger.info(">>> insert k={}, roletype={}, listid={}, address_id={} with address1={}, addressid2={} ", 
 						k, 
 						roleType, 
@@ -178,16 +180,153 @@ public class TestApp {
 						partymapList.get(k).get("ADDRESS_ID"), 
 						partymapList.get(k).get("ADDRESS_1"), 
 						addressIdList.get(k));
-				
+
 				insertParty(sourceConn, roleType, listId);
-				
+
 				Long addressid = addressIdList.get(k);
 				if (!insertAddressSet.contains(addressid)) {
 					insertAddress(sourceConn, addressid);
 					insertAddressSet.add(addressid);
+					lastInsertAddressid = addressid;
 				}
-				sourceConn.commit();
+
 			}
+
+			// check insert complete
+			Integer countPartyContact = null;
+			Integer countPartyContactTemp = null;
+			Console cnsl = null;
+			while (true) {
+				sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact;
+				pstmt = sinkConn.prepareStatement(sql);
+				rs = pstmt.executeQuery();
+				
+				while (rs.next()) {
+					countPartyContact = rs.getInt("COUNT");
+				}
+				rs.close();
+				pstmt.close();
+
+				if (countPartyContact == null) {
+					Thread.sleep(20000);
+					continue;
+				} else if (countPartyContact.intValue() < sampleSize) {
+
+					cnsl = System.console();
+					logger.info(">>>> cnsl:={}", cnsl);
+					cnsl.printf("   >>>should be equal, countPartyContact=%d, sampleSize=%d \n", countPartyContact, sampleSize);
+
+					cnsl.flush();
+//					logger.info(">>>>> should be equal, countPartyContact={}, sampleSize={}", countPartyContact, sampleSize);
+					Thread.sleep(2000);
+					continue;
+				}
+				sql = "select count(*) AS COUNT from " + config.sinkTablePartyContactTemp;
+				pstmt = sinkConn.prepareStatement(sql);
+				rs = pstmt.executeQuery();
+				
+				while (rs.next()) {
+					countPartyContactTemp = rs.getInt("COUNT");
+				}
+				rs.close();
+				pstmt.close();
+				
+				if (countPartyContactTemp == null || countPartyContact.intValue() == 0) {
+					logger.info(">>>>> countPartyContactTemp > 0 , countPartyContactTemp={}", countPartyContactTemp);
+					Thread.sleep(2000);
+					continue;
+				}
+				break;
+			}
+			logger.info(">>> countPartyContact={}, countPartyContactTemp={}", countPartyContact, countPartyContactTemp);
+			logger.info(">>>>> insert compplete!!!!!");
+
+			Thread.sleep(50000);
+			
+			// verify
+			for (int k = 0; k < partymapList.size(); k++) {
+				Integer roleType = (Integer)partymapList.get(k).get("ROLE_TYPE");
+				Long listId = (Long)partymapList.get(k).get("LIST_ID");
+				String table = null;
+				if (roleType.intValue() == 1) {
+					table = config.sourceTablePolicyHolder;
+				} else if (roleType.intValue() == 2) {
+					table = config.sourceTableInsuredList;
+				} else if (roleType.intValue() == 3) {
+					table = config.sourceTableContractBene;
+				}
+
+				sql = "select a.list_id, a.policy_id, a.name, a.certi_code, a.mobile_tel, a.email, a.address_id, b.address_1 from " 
+						+ table + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
+						+ " where list_id = ?";
+				pstmt = sourceConn.prepareStatement(sql);
+				pstmt.setLong(1, listId);
+				rs = pstmt.executeQuery();
+
+				PartyContact partyContact = null;
+				while (rs.next()) {
+					partyContact = new PartyContact();
+					partyContact.setAddress1(rs.getString("ADDRESS_1"));
+					partyContact.setAddressId(rs.getLong("ADDRESS_ID"));
+					partyContact.setCertiCode(rs.getString("CERTI_CODE"));
+					partyContact.setEmail(  (roleType.intValue() == 3)? null : rs.getString("EMAIL"));
+					partyContact.setListId(rs.getLong("LIST_ID"));
+					partyContact.setMobileTel(rs.getString("MOBILE_TEL"));
+					partyContact.setName(rs.getString("NAME"));
+					partyContact.setPolicyId(rs.getLong("POLICY_ID"));
+					partyContact.setRoleType(roleType);
+				}
+				rs.close();
+				pstmt.close();
+
+				if (partyContact == null) {
+					throw new Exception("Found no record in source db table=" + table + ", list_id=" + listId);
+				}
+
+				// select from party contact
+				sql = "select role_type, list_id, policy_id, name, certi_code, mobile_tel, email, address_id, address_1 from " + config.sinkTablePartyContact 
+						+ " where role_type = ? and list_id = ?";
+				pstmt = sinkConn.prepareStatement(sql);
+				pstmt.setLong(1, roleType);
+				pstmt.setLong(2, listId);
+
+
+				PartyContact partyContactIgnite = null;
+
+
+				rs = pstmt.executeQuery();
+				while (rs.next()) {
+					//						logger.info(">>>  Hi Hi Hi v v v Hi v v address1={}", rs.getString("ADDRESS_1"));
+					partyContactIgnite = new PartyContact();
+					partyContactIgnite.setAddress1(rs.getString("ADDRESS_1"));
+					partyContactIgnite.setAddressId(rs.getLong("ADDRESS_ID"));
+					partyContactIgnite.setCertiCode(rs.getString("CERTI_CODE"));
+					partyContactIgnite.setEmail(rs.getString("EMAIL"));
+					partyContactIgnite.setListId(rs.getLong("LIST_ID"));
+					partyContactIgnite.setMobileTel(rs.getString("MOBILE_TEL"));
+					partyContactIgnite.setName(rs.getString("NAME"));
+					partyContactIgnite.setPolicyId(rs.getLong("POLICY_ID"));
+					partyContactIgnite.setRoleType(rs.getInt("ROLE_TYPE"));
+				}
+				rs.close();
+				pstmt.close();
+
+				if (partyContactIgnite == null) {
+					logger.info(">>> sql={}, role_type={}, list_id={}", sql, roleType, listId);
+					throw new Exception("Found no record in partyContact, role type=" + roleType + ", list_id=" + listId);
+				}
+
+				if (!partyContact.equals(partyContactIgnite)) {
+					logger.info(">>> partycontact={}", ToStringBuilder.reflectionToString(partyContact));
+					logger.info(">>> partycontactIgnite={}", ToStringBuilder.reflectionToString(partyContactIgnite));
+
+					throw new Exception(" No match for source partyContact and ignite partycontact, lastInsertAddressid:" + lastInsertAddressid);
+				}
+				logger.info(">>>>> test testRandomInsertSamples for k={} DONE!! roleType={}, listId={}", k, roleType, listId);    
+			}
+
+			logger.info(">>>>>>>>>>> End -> testRandomInsertSamples size={}    [  OK  ]", partymapList.size());
+
 		} catch (Exception e) {
 			throw e;
 		} finally {
@@ -206,8 +345,6 @@ public class TestApp {
 				}
 			}
 		}
-		logger.info(">>>>>>>>>>>>>>>>>>>>> END -> testRandomInsertSamples");
-
 
 	}
 	public void testSamples() {
@@ -325,7 +462,7 @@ public class TestApp {
 
 			String initSrcTable = "";
 			String srcTable = "";
-			
+
 			sql = "";
 			if (roleType == 1) {
 				initSrcTable = POLICY_HOLDER_SRC;
@@ -1611,6 +1748,7 @@ on c.address_id = d.address_id;
 			pstmt.executeUpdate();
 			pstmt.close();
 
+			conn.commit();
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -1631,6 +1769,8 @@ on c.address_id = d.address_id;
 			pstmt.setLong(1, addressId);
 			pstmt.executeUpdate();
 			pstmt.close();
+
+			conn.commit();
 
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block

@@ -12,6 +12,11 @@ roletype=3, 9307600
 total: 20525790
 span :1096489ms
 
+create index for mobiletel: 908561
+create index for email: 840585
+
+total span: 2845688
+
 
 8:09.417 [main] INFO  c.t.s.pcr420669.load.InitialLoadApp - >>>  Start: createTable, tableName=PUBLIC.T_PARTY_CONTACT, createTableFile=env-uat/createtable-T_PARTY_CONTACT.sql
 17:38:09.969 [main] INFO  c.t.s.pcr420669.load.InitialLoadApp - >>>  End: createTable DONE!!!

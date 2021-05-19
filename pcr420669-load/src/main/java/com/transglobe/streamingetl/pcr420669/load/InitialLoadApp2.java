@@ -56,7 +56,7 @@ public class InitialLoadApp2 {
 
 	private static final int THREADS = 20;
 
-//	private static final long SEQ_INTERVAL = 1000000L;
+	//	private static final long SEQ_INTERVAL = 1000000L;
 
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
@@ -238,15 +238,15 @@ public class InitialLoadApp2 {
 					pstmt.clearBatch();
 				}
 			}
-		//	if (startSeq % 50000000 == 0) {
-				//				
-				cnsl = System.console();
-				//				logger.info("   >>>roletype={}, startSeq={}, count={}, span={} ", roleType, startSeq, count, (System.currentTimeMillis() - t0));
-				cnsl.printf("   >>>roletype=%d, startSeq=%d, endSeq=%d, count=%d \n", roleType, startSeq, endSeq, count);
+			//	if (startSeq % 50000000 == 0) {
+			//				
+			cnsl = System.console();
+			//				logger.info("   >>>roletype={}, startSeq={}, count={}, span={} ", roleType, startSeq, count, (System.currentTimeMillis() - t0));
+			cnsl.printf("   >>>roletype=%d, startSeq=%d, endSeq=%d, count=%d \n", roleType, startSeq, endSeq, count);
 
-				//				cnsl.printf("   >>>roletype=" + roleType + ", startSeq=" + startSeq + ", count=" + count +", span=" + ",span=" + (System.currentTimeMillis() - t0));
-				cnsl.flush();
-	//		}
+			//				cnsl.printf("   >>>roletype=" + roleType + ", startSeq=" + startSeq + ", count=" + count +", span=" + ",span=" + (System.currentTimeMillis() - t0));
+			cnsl.flush();
+			//		}
 
 			pstmt.executeBatch();
 			if (pstmt != null) pstmt.close();
@@ -311,45 +311,21 @@ public class InitialLoadApp2 {
 
 				long stepSize = 10000;
 				long startIndex = 0;
-				
+
 				int totalPartyCount = 0;
 				List<LoadBean> loadBeanList = new ArrayList<>();
 				while (startIndex <= maxListId) {
 					long endIndex = startIndex + stepSize;
 
-					/*
-					sql = "select count(*) as party_count from " + table + " a inner join t_address b on a.address_id = b.address_id "
-							+ " where a.address_id >= ? and a.address_id < ?";
-					pstmt = sourceConn.prepareStatement(sql);
-					pstmt.setLong(1, startIndex);
-					pstmt.setLong(2, endIndex);
-					rs = pstmt.executeQuery();
-					int partyCount = 0;
-					while (rs.next()) {
-						partyCount = rs.getInt("PARTY_COUNT");
-					}	
-					rs.close();
-					pstmt.close();
 
-					//	logger.info("partyCount={}", partyCount);
-					totalPartyCount +=  partyCount;
-
-*/
-//					if (partyCount > 0) {
-//						int div = 10;
-//						long subStepSize = stepSize / div;
-//						for (int j = 0; j < div; j++) {
 					int j = 0;
 					long  subStepSize = stepSize;
-							LoadBean loadBean = new LoadBean();
-							loadBean.fullTableName = table;
-							loadBean.roleType = roleType;
-							loadBean.startSeq = startIndex + j * subStepSize;
-							loadBean.endSeq = startIndex + (j + 1) * subStepSize;
-							loadBeanList.add(loadBean);
-//
-//						}
-//					}
+					LoadBean loadBean = new LoadBean();
+					loadBean.fullTableName = table;
+					loadBean.roleType = roleType;
+					loadBean.startSeq = startIndex + j * subStepSize;
+					loadBean.endSeq = startIndex + (j + 1) * subStepSize;
+					loadBeanList.add(loadBean);
 
 					startIndex = endIndex;
 				}
@@ -361,75 +337,9 @@ public class InitialLoadApp2 {
 								() -> loadPartyContact(t.fullTableName, t.roleType, t.startSeq, t.endSeq), executor))
 						.collect(Collectors.toList());			
 
-
-
 				List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
 
-
-
-
 			}
-			/*
-			List<String> fullTableNameList = new ArrayList<>();
-			fullTableNameList.add(config.sourceTablePolicyHolder);
-			fullTableNameList.add(config.sourceTableInsuredList);
-			fullTableNameList.add(config.sourceTableContractBene);
-			for (String fullTableName : fullTableNameList) {
-				Long beginSeq = 0L;
-
-				List<LoadBean> loadBeanList = new ArrayList<>();
-				while (beginSeq <= maxSeq) {
-					LoadBean loadBean = new LoadBean();
-					loadBean.fullTableName = fullTableName;
-					if (config.sourceTablePolicyHolder.equals(fullTableName)) {
-						loadBean.roleType = 1;
-					} else if (config.sourceTableInsuredList.equals(fullTableName)) {
-						loadBean.roleType = 2;
-					} else if (config.sourceTableContractBene.equals(fullTableName)) {
-						loadBean.roleType = 3;
-					}
-					loadBean.startSeq = beginSeq;
-					loadBean.endSeq = beginSeq + SEQ_INTERVAL;
-					loadBeanList.add(loadBean);
-
-					beginSeq = beginSeq + SEQ_INTERVAL;
-				}
-				LoadBean loadBean = new LoadBean();
-				loadBean.fullTableName = fullTableName;
-				loadBean.roleType = 1;
-				loadBean.startSeq = beginSeq;
-				loadBean.endSeq = maxSeq;
-				loadBeanList.add(loadBean);
-
-				List<CompletableFuture<Map<String, String>>> futures = 
-						loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
-								() -> loadPartyContact(t.fullTableName, t.roleType, t.startSeq, t.endSeq), executor))
-						.collect(Collectors.toList());			
-
-
-
-				List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
-
-				//				for (Map<String, String> map : result) {
-				//					String sourceTable = map.get("SOURCE_TABLE");
-				//					String sinkTable = map.get("SINK_TABLE");
-				//					String returnCode = map.get("RETURN_CODE");
-				//					String recordCount = "";
-				//					String errormsg = "";
-				//					String stackTrace = "";
-				//					
-				//					if ("0".equals(returnCode)) {
-				//						recordCount = map.get("RECORD_COUNT");
-				//					} else {
-				//						errormsg = map.get("ERROR_MSG");
-				//						stackTrace = map.get("STACE_TRACE");
-				//					}
-
-				//					logger.info("sourceTable={}, sinkTable={}, returnCode={}, recordCount={}, errormsg={},stackTrace={}", 
-				//							sourceTable, sinkTable, returnCode, recordCount, errormsg, stackTrace);
-				//				}
-			}
-			 */
 
 		} finally {
 			if (executor != null) executor.shutdown();
