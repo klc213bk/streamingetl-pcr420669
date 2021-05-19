@@ -54,9 +54,9 @@ public class InitialLoadApp2 {
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_TEMP_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT_TEMP.sql";
 
-	private static final int THREADS = 10;
+	private static final int THREADS = 20;
 
-	private static final long SEQ_INTERVAL = 1000000L;
+//	private static final long SEQ_INTERVAL = 1000000L;
 
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
@@ -120,17 +120,17 @@ public class InitialLoadApp2 {
 			InitialLoadApp2 app = new InitialLoadApp2(configFile);
 
 			// create sink table
-			//			logger.info(">>>  Start: dropTable, tableName={}", app.config.sinkTablePartyContact);
-			//			app.dropTable(app.config.sinkTablePartyContact);
-			//			app.dropTable(app.config.sinkTablePartyContactTemp);
-			//			logger.info(">>>  End: dropTable DONE!!!");
-			//
-			//			logger.info(">>>  Start: createTable, tableName={}, createTableFile={}", app.config.sinkTablePartyContact, createTableFile);			
-			//			app.createTable(app.config.sinkTablePartyContact, createTableFile);
-			//			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
-			//			logger.info(">>>  End: createTable DONE!!!");
-			//
-			//			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
+			logger.info(">>>  Start: dropTable, tableName={}", app.config.sinkTablePartyContact);
+			app.dropTable(app.config.sinkTablePartyContact);
+			app.dropTable(app.config.sinkTablePartyContactTemp);
+			logger.info(">>>  End: dropTable DONE!!!");
+
+			logger.info(">>>  Start: createTable, tableName={}, createTableFile={}", app.config.sinkTablePartyContact, createTableFile);			
+			app.createTable(app.config.sinkTablePartyContact, createTableFile);
+			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
+			logger.info(">>>  End: createTable DONE!!!");
+
+			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
 
 			if (loaddata) {
 				app.run();
@@ -138,7 +138,7 @@ public class InitialLoadApp2 {
 			logger.info("run load data span={}, ", (System.currentTimeMillis() - t0));
 
 			// create indexes
-			//			app.runCreateIndexes();
+			app.runCreateIndexes();
 
 
 			app.close();
@@ -169,7 +169,7 @@ public class InitialLoadApp2 {
 			Connection sinkConn = this.sinkConnectionPool.getConnection();
 
 			String sql = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
-					+ " where " + startSeq + " <= a.address_id and a.address_id < " + endSeq ;
+					+ " where " + startSeq + " <= a.list_id and a.list_id < " + endSeq ;
 			//		+ " and rownum < 10";
 			//	+ " fetch next 10 rows only";
 
@@ -238,15 +238,15 @@ public class InitialLoadApp2 {
 					pstmt.clearBatch();
 				}
 			}
-			if (startSeq % 50000000 == 0) {
+		//	if (startSeq % 50000000 == 0) {
 				//				
 				cnsl = System.console();
 				//				logger.info("   >>>roletype={}, startSeq={}, count={}, span={} ", roleType, startSeq, count, (System.currentTimeMillis() - t0));
-				cnsl.printf("   >>>roletype=%d, startSeq=%d, count=%d \n", roleType, startSeq, count);
+				cnsl.printf("   >>>roletype=%d, startSeq=%d, endSeq=%d, count=%d \n", roleType, startSeq, endSeq, count);
 
 				//				cnsl.printf("   >>>roletype=" + roleType + ", startSeq=" + startSeq + ", count=" + count +", span=" + ",span=" + (System.currentTimeMillis() - t0));
 				cnsl.flush();
-			}
+	//		}
 
 			pstmt.executeBatch();
 			if (pstmt != null) pstmt.close();
@@ -286,45 +286,38 @@ public class InitialLoadApp2 {
 
 			Connection sourceConn = this.sourceConnectionPool.getConnection();
 
-			/*Statement stmt = sourceConn.createStatement();
-			resultSet  = stmt.executeQuery("select max(address_id) as MAX_ADDRESS_ID from " + config.sourceTableAddress);
-			Long maxSeq = 0L;
-			while (resultSet.next()) {
-				maxSeq = rs.getLong("MAX_ADDRESS_ID");
-			}
-			maxSeq = maxSeq++;
-			resultSet.close();
-			stmt.close();
-			sourceConn.close();
-			logger.info(">>> max address id={}", maxSeq);
-			 */
 			String table = null;
+			Integer roleType = null;
 			for (int i = 0; i < 3; i++) {
 				if ( i == 0) {
 					table = config.sourceTablePolicyHolder;
+					roleType = 1;
 				} else if ( i == 1) {
 					table = config.sourceTableInsuredList;
+					roleType = 2;
 				} else if ( i == 2) {
 					table = config.sourceTableContractBene;
+					roleType = 3;
 				}
-				sql = "select max(a.address_id) as MAX_ADDRESS_ID from " + table + " a inner join t_address b on a.address_id = b.address_id ";
+				sql = "select max(list_id) as MAX_LIST_ID from " + table;
 				pstmt = sourceConn.prepareStatement(sql);
 				rs = pstmt.executeQuery();
-				long maxAddressId = 0;
+				long maxListId = 0;
 				while (rs.next()) {
-					maxAddressId = rs.getLong("MAX_ADDRESS_ID");
+					maxListId = rs.getLong("MAX_LIST_ID");
 				}
 				rs.close();
 				pstmt.close();
 
-				long stepSize = 10000000;
+				long stepSize = 10000;
 				long startIndex = 0;
-
+				
 				int totalPartyCount = 0;
 				List<LoadBean> loadBeanList = new ArrayList<>();
-				while (startIndex <= maxAddressId) {
+				while (startIndex <= maxListId) {
 					long endIndex = startIndex + stepSize;
 
+					/*
 					sql = "select count(*) as party_count from " + table + " a inner join t_address b on a.address_id = b.address_id "
 							+ " where a.address_id >= ? and a.address_id < ?";
 					pstmt = sourceConn.prepareStatement(sql);
@@ -341,26 +334,40 @@ public class InitialLoadApp2 {
 					//	logger.info("partyCount={}", partyCount);
 					totalPartyCount +=  partyCount;
 
-					if (partyCount > 0) {
-						int div = 10;
-						long subStepSize = stepSize / 10;
-						for (int j = 0; j < div; j++) {
+*/
+//					if (partyCount > 0) {
+//						int div = 10;
+//						long subStepSize = stepSize / div;
+//						for (int j = 0; j < div; j++) {
+					int j = 0;
+					long  subStepSize = stepSize;
 							LoadBean loadBean = new LoadBean();
-							loadBean.fullTableName = config.sourceTablePolicyHolder;
-							loadBean.roleType = 1;
+							loadBean.fullTableName = table;
+							loadBean.roleType = roleType;
 							loadBean.startSeq = startIndex + j * subStepSize;
 							loadBean.endSeq = startIndex + (j + 1) * subStepSize;
 							loadBeanList.add(loadBean);
-
-							//	logger.info("startSeq={}, endSeq={}", loadBean.startSeq, loadBean.endSeq);
-
-						}
-					}
+//
+//						}
+//					}
 
 					startIndex = endIndex;
 				}
 
-				logger.info("table={}, size={}, total partyCount={}", table, loadBeanList.size(), totalPartyCount);
+				logger.info("table={}, maxlistid={}, size={}, total partyCount={}", table, maxListId, loadBeanList.size(), totalPartyCount);
+
+				List<CompletableFuture<Map<String, String>>> futures = 
+						loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
+								() -> loadPartyContact(t.fullTableName, t.roleType, t.startSeq, t.endSeq), executor))
+						.collect(Collectors.toList());			
+
+
+
+				List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
+
+
+
+
 			}
 			/*
 			List<String> fullTableNameList = new ArrayList<>();
@@ -495,10 +502,6 @@ public class InitialLoadApp2 {
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + config.sinkTablePartyContact + " (EMAIL)  INLINE_SIZE 20 PARALLEL 8");
 		logger.info(">>>>> create index email span={}", (System.currentTimeMillis() - t0));
-
-		t0 = System.currentTimeMillis();
-		createIndex("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + config.sinkTablePartyContact + " (ADDRESS_ID) PARALLEL 8");
-		logger.info(">>>>> create index address id span={}", (System.currentTimeMillis() - t0));
 
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + config.sinkTablePartyContactTemp + " (ADDRESS_ID) PARALLEL 8");
