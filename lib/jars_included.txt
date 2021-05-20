@@ -10,9 +10,12 @@ jackson-databind-2.11.3.jar
 jsqlparser-1.2.jar
 kafka-clients-2.7.0.jar
 #kafka-streams-2.7.0.jar
+kotlin-stdlib-2.4.20.jar
 logback-classic-1.2.3.jar
 logback-core-1.2.3.jar
 ojdbc8-12.2.0.1.jar
+okhttp-4.9.0.jar
+okio-2.8.0.jar
 pcr420669-consumer-1.0.jar
 pcr420669-load-1.0.jar
 slf4j-api-1.7.30.jar
