@@ -74,9 +74,9 @@ public class TestApp {
 
 			app.testSamples();
 
-//			app.testRandomInsertSamples(100);
+			app.testRandomInsertSamples(100);
 			
-//			app.testRandomUpdateSamples(50);
+			app.testRandomUpdateSamples(50);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
