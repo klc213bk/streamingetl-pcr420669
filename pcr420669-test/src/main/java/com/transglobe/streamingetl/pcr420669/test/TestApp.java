@@ -41,9 +41,8 @@ import okhttp3.Response;
 public class TestApp {
 	private static final Logger logger = LoggerFactory.getLogger(TestApp.class);
 
-	private static final String CONFIG_FILE_NAME = "config.dev1.properties";
-	private static String BASE_URL = "http://localhost:8080/partycontact/v1.0";
-
+	private static final String CONFIG_FILE_NAME = "config.properties";
+	
 	private static int POLICY_HOLDER_ROLE_TYPE = 1;
 	private static int INSURED_LIST_ROLE_TYPE = 2;
 	private static int CONTRACT_BENE_ROLE_TYPE = 3;
@@ -65,18 +64,19 @@ public class TestApp {
 
 	public static void main(String[] args) {
 
-
+		String profileActive = System.getProperty("profile.active", "");
 
 		TestApp app;
 		try {
+			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
 
-			app = new TestApp(CONFIG_FILE_NAME);
+			app = new TestApp(configFile);
 
 			app.testSamples();
 
-			app.testRandomInsertSamples(100);
+//			app.testRandomInsertSamples(100);
 			
-			app.testRandomUpdateSamples(50);
+//			app.testRandomUpdateSamples(50);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -964,7 +964,7 @@ public class TestApp {
 
 		OkHttpClient client = new OkHttpClient();
 
-		HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL + "/search").newBuilder();
+		HttpUrl.Builder urlBuilder = HttpUrl.parse(config.webBaseurl + "/search").newBuilder();
 		urlBuilder.addQueryParameter(searchBy, searchContent);
 
 		String url = urlBuilder.build().toString();
@@ -1979,8 +1979,7 @@ on c.address_id = d.address_id;
 				rs = pstmt.executeQuery();
 				while (rs.next()) {
 					if (!StringUtils.equals(updateAddress1, rs.getString("ADDRESS_1"))) {
-						logger.error(">>> no match updateAddress1={}, ADDRESS_1={}", updateAddress1, rs.getString("ADDRESS_1"));
-
+						
 						break;
 					}
 					found = true;

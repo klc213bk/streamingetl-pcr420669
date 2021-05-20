@@ -30,7 +30,7 @@ public class Config {
 	public String bootstrapServers;
 	public String groupId;
 	public List<String> topicList;
-	public String runResultFile;
+	public String webBaseurl;
 
 	public static Config getConfig(String fileName) throws Exception {
 		ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -57,6 +57,8 @@ public class Config {
 			config.sinkDbUrl = prop.getProperty("sink.db.url");
 			config.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			config.sinkTablePartyContactTemp = prop.getProperty("sink.table.party_contact_temp");
+			
+			config.webBaseurl = prop.getProperty("web.baseurl");
 			
 			return config;
 		} catch (Exception e) {
