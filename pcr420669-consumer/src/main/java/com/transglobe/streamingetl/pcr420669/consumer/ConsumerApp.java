@@ -138,6 +138,7 @@ public class ConsumerApp {
 									doDelete(conn, objectMapper, payload);
 									logger.info("   >>>doDelete DONE!!!");
 								}
+//								conn.commit();
 
 							} catch (Exception e) {
 								// TODO Auto-generated catch block
@@ -149,17 +150,10 @@ public class ConsumerApp {
 							}
 
 						} 
-						//					if (pstmt != null) pstmt.close();
-						//					
-						//					if (pstmt2 != null) pstmt2.close();
-						//					
-						//					conn.commit();  
-						//					
-						//					conn.close();  
 					} finally {
 						if (conn != null) conn.close();
 					}
-					consumer.commitSync();
+					//consumer.commitSync();
 				}
 
 			}

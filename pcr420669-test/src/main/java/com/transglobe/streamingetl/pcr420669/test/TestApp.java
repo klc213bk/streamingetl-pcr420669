@@ -2,6 +2,8 @@ package com.transglobe.streamingetl.pcr420669.test;
 
 import java.io.Console;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -17,6 +19,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
@@ -56,6 +59,7 @@ public class TestApp {
 
 	public TestApp (String fileName) throws Exception {
 		config = Config.getConfig(fileName);
+		
 	}
 
 	public static void main(String[] args) {
@@ -67,9 +71,9 @@ public class TestApp {
 
 			app = new TestApp(CONFIG_FILE_NAME);
 
-			//			app.testSamples();
+//						app.testSamples();
 
-			app.testRandomInsertSamples(1000);
+			app.testRandomInsertSamples(400);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -212,11 +216,11 @@ public class TestApp {
 					continue;
 				} else if (countPartyContact.intValue() < sampleSize) {
 
-					cnsl = System.console();
-					logger.info(">>>> cnsl:={}", cnsl);
-					cnsl.printf("   >>>should be equal, countPartyContact=%d, sampleSize=%d \n", countPartyContact, sampleSize);
+				//	cnsl = System.console();
+			//		logger.info(">>>> cnsl:={}", cnsl);
+				//	cnsl.printf("   >>>should be equal, countPartyContact=%d, sampleSize=%d \n", countPartyContact, sampleSize);
 
-					cnsl.flush();
+				//	cnsl.flush();
 //					logger.info(">>>>> should be equal, countPartyContact={}, sampleSize={}", countPartyContact, sampleSize);
 					Thread.sleep(2000);
 					continue;
@@ -241,7 +245,7 @@ public class TestApp {
 			logger.info(">>> countPartyContact={}, countPartyContactTemp={}", countPartyContact, countPartyContactTemp);
 			logger.info(">>>>> insert compplete!!!!!");
 
-			Thread.sleep(50000);
+			Thread.sleep(30000);
 			
 			// verify
 			for (int k = 0; k < partymapList.size(); k++) {
@@ -1780,4 +1784,5 @@ on c.address_id = d.address_id;
 			if (pstmt != null) pstmt.close();
 		}
 	}
+
 }
