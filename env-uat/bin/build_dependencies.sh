@@ -1,7 +1,7 @@
 #!/bin/bash
 
-COMMON_HOME=/home/oracle/gitrepository/transglobe/streamingetl-common
-APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
+COMMON_HOME=/home/kafka/streamingetl-common
+APP_HOME=/home/kafka/streamingetl-pcr420669
 
 cd ${COMMON_HOME}
 mvn clean install
