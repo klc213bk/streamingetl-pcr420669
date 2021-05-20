@@ -330,7 +330,24 @@ public class TestApp {
 
 					throw new Exception(" No match for source partyContact and ignite partycontact, lastInsertAddressid:" + lastInsertAddressid);
 				}
-				logger.info(">>>>> test testRandomInsertSamples for k={} DONE!! roleType={}, listId={}", k, roleType, listId);    
+				logger.info(">>>>> test ignite object equals for k={} DONE!! roleType={}, listId={}", k, roleType, listId);    
+				
+				// test spring boot
+				List<PartyContact> contactList = this.queryPartyContact("listId", String.valueOf(listId));
+				if (contactList.size() != 1) {
+					throw new Exception("spring boot query result error, size=" + contactList.size() + ", listId=" + listId);
+				}
+				PartyContact iPartyContact = contactList.get(0);
+				if (!iPartyContact.equals(partyContactIgnite)) {
+					logger.info(">>> iPartyContact={}", ToStringBuilder.reflectionToString(iPartyContact));
+					logger.info(">>> partycontactIgnite={}", ToStringBuilder.reflectionToString(partyContactIgnite));
+
+					throw new Exception(" No match for spring boot partyContact and ignite partycontac, listid=" + listId);
+				}
+				
+				logger.info(">>>>> test spring boot object equals for k={} DONE!! roleType={}, listId={}", k, roleType, listId);    
+				
+
 			}
 
 			logger.info(">>>>>>>>>>> End -> testRandomInsertSamples size={}    [  OK  ]", partymapList.size());
@@ -581,7 +598,23 @@ public class TestApp {
 
 					throw new Exception(" No match for source partyContact and ignite partycontact");
 				}
-				logger.info(">>>>> test testRandomUpdateSamples for k={} DONE!! roleType={}, listId={}", k, roleType, listId);    
+				logger.info(">>>>> test ignite object equals for k={} DONE!! roleType={}, listId={}", k, roleType, listId);   
+				
+				// test spring boot
+				List<PartyContact> contactList = this.queryPartyContact("listId", String.valueOf(listId));
+				if (contactList.size() != 1) {
+					throw new Exception("spring boot query result error, size=" + contactList.size() + ", listId=" + listId);
+				}
+				PartyContact iPartyContact = contactList.get(0);
+				if (!iPartyContact.equals(partyContactIgnite)) {
+					logger.info(">>> iPartyContact={}", ToStringBuilder.reflectionToString(iPartyContact));
+					logger.info(">>> partycontactIgnite={}", ToStringBuilder.reflectionToString(partyContactIgnite));
+
+					throw new Exception(" No match for spring boot partyContact and ignite partycontact, listid=" + listId);
+				}
+				
+				logger.info(">>>>> test spring boot object equals for k={} DONE!! roleType={}, listId={}", k, roleType, listId);    
+				
 			}
 
 			logger.info(">>>>>>>>>>> End -> testRandomUpdateSamples size={}    [  OK  ]", partymapList.size());
