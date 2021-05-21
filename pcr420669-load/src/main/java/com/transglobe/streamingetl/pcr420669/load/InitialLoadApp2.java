@@ -102,9 +102,9 @@ public class InitialLoadApp2 {
 	public static void main(String[] args) {
 		logger.info(">>> start run InitialLoadApp");
 
-		boolean loaddata = false;
-		if (args.length != 0 && StringUtils.equals("loaddata", args[0])) {
-			loaddata = true;
+		boolean noload = false;
+		if (args.length != 0 && StringUtils.equals("noload", args[0])) {
+			noload = true;
 		}
 
 
@@ -132,7 +132,7 @@ public class InitialLoadApp2 {
 
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
 
-			if (loaddata) {
+			if (!noload) {
 				app.run();
 			}
 			logger.info("run load data span={}, ", (System.currentTimeMillis() - t0));
