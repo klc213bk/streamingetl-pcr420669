@@ -47,8 +47,8 @@ import org.slf4j.LoggerFactory;
  * @author oracle
  *
  */
-public class InitialLoadApp {
-	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp.class);
+public class InitialLoadAppDeprecated {
+	private static final Logger logger = LoggerFactory.getLogger(InitialLoadAppDeprecated.class);
 
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
@@ -69,7 +69,7 @@ public class InitialLoadApp {
 	}
 	private Config config;
 
-	public InitialLoadApp(String fileName) throws Exception {
+	public InitialLoadAppDeprecated(String fileName) throws Exception {
 		config = Config.getConfig(fileName);
 		//	this.createTableFile = createTableFile;
 
@@ -117,7 +117,7 @@ public class InitialLoadApp {
 			String createTableFile = StringUtils.isBlank(profileActive)? CREATE_TABLE_FILE_NAME : profileActive + "/" + CREATE_TABLE_FILE_NAME;
 			String createTempTableFile = StringUtils.isBlank(profileActive)? CREATE_TEMP_TABLE_FILE_NAME : profileActive + "/" + CREATE_TEMP_TABLE_FILE_NAME;
 
-			InitialLoadApp app = new InitialLoadApp(configFile);
+			InitialLoadAppDeprecated app = new InitialLoadAppDeprecated(configFile);
 
 			// create sink table
 			logger.info(">>>  Start: dropTable, tableName={}", app.config.sinkTablePartyContact);

@@ -91,7 +91,7 @@ public class ConsumerApp {
 		props.setProperty("bootstrap.servers", config.bootstrapServers);
 		props.setProperty("group.id", config.groupId);
 		props.setProperty("enable.auto.commit", "true");
-		props.setProperty("auto.commit.interval.ms", "1000");
+		props.setProperty("auto.commit.interval.ms", "100");
 		props.setProperty("max.poll.interval.ms", "120000");
 		props.setProperty("session.timeout.ms", "120000");
 		props.setProperty("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
@@ -112,7 +112,7 @@ public class ConsumerApp {
 					Connection conn = connPool.getConnection();
 					try {
 						for (ConsumerRecord<String, String> record : records) {
-							logger.info(">>>Topic: {}, Partition: {}, Offset: {}, key: {}, value: {}", record.topic(), record.partition(), record.offset(), record.key(), record.value());
+//							logger.info(">>>Topic: {}, Partition: {}, Offset: {}, key: {}, value: {}", record.topic(), record.partition(), record.offset(), record.key(), record.value());
 							ObjectMapper objectMapper = new ObjectMapper();
 							objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
@@ -128,17 +128,16 @@ public class ConsumerApp {
 								if ("INSERT".equals(operation)) {
 									logger.info("   >>>doInsert");
 									doInsert(conn, objectMapper, payload);
-									logger.info("   >>>doInsert DONE!!!");
+//									logger.info("   >>>doInsert DONE!!!");
 								} else if ("UPDATE".equals(operation)) {
 									logger.info("   >>>doUpdate");
 									doUpdate(conn, objectMapper, payload);
-									logger.info("   >>>doUpdate DONE!!!");
+//									logger.info("   >>>doUpdate DONE!!!");
 								} else if ("DELETE".equals(operation)) {
 									logger.info("   >>>doDelete");
-									doDelete(conn, objectMapper, payload);
-									logger.info("   >>>doDelete DONE!!!");
+//									doDelete(conn, objectMapper, payload);
+//									logger.info("   >>>doDelete DONE!!!");
 								}
-//								conn.commit();
 
 							} catch (Exception e) {
 								// TODO Auto-generated catch block
@@ -207,9 +206,9 @@ public class ConsumerApp {
 		if (config.sourceTablePolicyHolder.equals(fullTableName)
 				|| config.sourceTableInsuredList.equals(fullTableName)
 				|| config.sourceTableContractBene.equals(fullTableName)) {
-			logger.info("   >>>insert partyContact");
+//			logger.info("   >>>insert partyContact");
 			PartyContact partyContact = objectMapper.readValue(data, PartyContact.class);
-			logger.info(">>> partyContact={}", partyContact);
+//			logger.info(">>> partyContact={}", partyContact);
 
 			if (config.sourceTablePolicyHolder.equals(fullTableName)) {
 				partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
@@ -219,79 +218,79 @@ public class ConsumerApp {
 				partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 				partyContact.setEmail(null); // 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 			}
-			logger.info(">>> start insertPartyContact");
+//			logger.info(">>> start insertPartyContact");
 			insertPartyContact(conn, partyContact);
 
 		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			Address address = objectMapper.readValue(data, Address.class);
-			logger.info(">>> address={}", address);
-			logger.info("   >>>insert Address");
+//			logger.info(">>> address={}", address);
+//			logger.info("   >>>insert Address");
 			insertAddress(conn, address);
 		}
 
 
 	}
-	private void doDelete(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
-		String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
-		logger.info(">>> fullTableName tableName={}", fullTableName);
-		String before = payload.get("before").toString();
-		String sql = "";
-		Integer roleType = null;
-		Long listId = null;
-
-		if (config.sourceTablePolicyHolder.equals(fullTableName)
-				|| config.sourceTableInsuredList.equals(fullTableName)
-				|| config.sourceTableContractBene.equals(fullTableName)) {
-			PartyContact beforePartyContact = objectMapper.readValue(before, PartyContact.class);
-			logger.info(">>> beforePartyContact={}", beforePartyContact);
-
-			if (config.sourceTablePolicyHolder.equals(fullTableName)) {
-				beforePartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
-			} else if (config.sourceTableInsuredList.equals(fullTableName)) {
-				beforePartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
-			} else if (config.sourceTableContractBene.equals(fullTableName)) {
-				beforePartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
-				beforePartyContact.setEmail(null); // 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
-			}
-
-			throw new Exception(">>> Delete action is not supported");
-
-		} else if (config.sourceTableAddress.equals(fullTableName)) {
-			Address beforeAddress = objectMapper.readValue(before, Address.class);
-			logger.info(">>> beforeAddress={}", beforeAddress);
-
-			throw new Exception(">>> Delete action for address is not supported");
-		}
-
-
-		sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact + " where role_type = ? and list_id = ?";
-		PreparedStatement pstmt = conn.prepareStatement(sql);
-		pstmt.setInt(1, roleType);
-		pstmt.setLong(2, listId);
-		ResultSet resultSet = pstmt.executeQuery();
-		Integer count = 0; 
-		while (resultSet.next()) {
-			count = resultSet.getInt("COUNT");
-		}
-		logger.info(">>> count={}", count);
-		resultSet.close();
-		pstmt.close();
-
-		if (count > 0) {
-			sql = "delete " + config.sinkTablePartyContact + " where role_type = ? and list_id = ?"; 
-			pstmt = conn.prepareStatement(sql);
-			pstmt.setInt(1, roleType);
-			pstmt.setLong(2, listId);
-
-			pstmt.executeUpdate();
-		} else {
-			// record exists, error
-			String error = String.format("table=%s record does not exist, role_type=%d, list_id=%d", config.sinkTablePartyContact, roleType, listId);
-			throw new Exception(error);
-		}
-		pstmt.close();
-
-	}
+//	private void doDelete(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
+//		String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
+//		logger.info(">>> fullTableName tableName={}", fullTableName);
+//		String before = payload.get("before").toString();
+//		String sql = "";
+//		Integer roleType = null;
+//		Long listId = null;
+//
+//		if (config.sourceTablePolicyHolder.equals(fullTableName)
+//				|| config.sourceTableInsuredList.equals(fullTableName)
+//				|| config.sourceTableContractBene.equals(fullTableName)) {
+//			PartyContact beforePartyContact = objectMapper.readValue(before, PartyContact.class);
+////			logger.info(">>> beforePartyContact={}", beforePartyContact);
+//
+//			if (config.sourceTablePolicyHolder.equals(fullTableName)) {
+//				beforePartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
+//			} else if (config.sourceTableInsuredList.equals(fullTableName)) {
+//				beforePartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
+//			} else if (config.sourceTableContractBene.equals(fullTableName)) {
+//				beforePartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
+//				beforePartyContact.setEmail(null); // 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
+//			}
+//
+//			throw new Exception(">>> Delete action is not supported");
+//
+//		} else if (config.sourceTableAddress.equals(fullTableName)) {
+//			Address beforeAddress = objectMapper.readValue(before, Address.class);
+////			logger.info(">>> beforeAddress={}", beforeAddress);
+//
+//			throw new Exception(">>> Delete action for address is not supported");
+//		}
+//
+//
+//		sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact + " where role_type = ? and list_id = ?";
+//		PreparedStatement pstmt = conn.prepareStatement(sql);
+//		pstmt.setInt(1, roleType);
+//		pstmt.setLong(2, listId);
+//		ResultSet resultSet = pstmt.executeQuery();
+//		Integer count = 0; 
+//		while (resultSet.next()) {
+//			count = resultSet.getInt("COUNT");
+//		}
+//		logger.info(">>> count={}", count);
+//		resultSet.close();
+//		pstmt.close();
+//
+//		if (count > 0) {
+//			sql = "delete " + config.sinkTablePartyContact + " where role_type = ? and list_id = ?"; 
+//			pstmt = conn.prepareStatement(sql);
+//			pstmt.setInt(1, roleType);
+//			pstmt.setLong(2, listId);
+//
+//			pstmt.executeUpdate();
+//		} else {
+//			// record exists, error
+//			String error = String.format("table=%s record does not exist, role_type=%d, list_id=%d", config.sinkTablePartyContact, roleType, listId);
+//			throw new Exception(error);
+//		}
+//		pstmt.close();
+//
+//	}
 	private void doUpdate(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
 		logger.info(">>> fulltableName={}", fullTableName);
@@ -303,8 +302,8 @@ public class ConsumerApp {
 				|| config.sourceTableContractBene.equals(fullTableName)) {
 			PartyContact oldpartyContact = objectMapper.readValue(before, PartyContact.class);
 			PartyContact newpartyContact = objectMapper.readValue(data, PartyContact.class);
-			logger.info(">>> oldpartyContact={}", oldpartyContact);
-			logger.info(">>> newpartyContact={}", newpartyContact);
+//			logger.info(">>> oldpartyContact={}", oldpartyContact);
+//			logger.info(">>> newpartyContact={}", newpartyContact);
 
 			if (config.sourceTablePolicyHolder.equals(fullTableName)) {
 				oldpartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
@@ -323,8 +322,8 @@ public class ConsumerApp {
 		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			Address oldAddress = objectMapper.readValue(before, Address.class);
 			Address newAddress = objectMapper.readValue(data, Address.class);
-			logger.info(">>> oldAddress={}", oldAddress);
-			logger.info(">>> newAddress={}", newAddress);
+//			logger.info(">>> oldAddress={}", oldAddress);
+//			logger.info(">>> newAddress={}", newAddress);
 
 			updateAddress(conn, oldAddress, newAddress);
 		}
@@ -369,13 +368,13 @@ public class ConsumerApp {
 		}
 	}
 	private String getAddress1FromPartyContactTemp(Connection conn, Long addressId) throws SQLException {
-		logger.info(">>> ccc");
+	
 		PreparedStatement pstmt = null;
 		ResultSet resultSet = null;
 		String address1 = null;
 		try {
 			String sql = "select ADDRESS_1 from " + config.sinkTablePartyContactTemp + " where address_id = " + addressId;
-			logger.info(">>> sql={}", sql);
+			
 			pstmt = conn.prepareStatement(sql);
 			resultSet = pstmt.executeQuery();
 
@@ -383,8 +382,7 @@ public class ConsumerApp {
 				address1 = resultSet.getString("ADDRESS_1");
 				break;
 			}
-			logger.info(">>> address1={}", address1);
-
+		
 			resultSet.close();
 			pstmt.close();
 
@@ -403,7 +401,6 @@ public class ConsumerApp {
 		while (resultSet.next()) {
 			count = resultSet.getInt("COUNT");
 		}
-		logger.info(">>> count={}", count);
 		resultSet.close();
 		pstmt.close();
 
@@ -506,18 +503,14 @@ public class ConsumerApp {
 		}
 	}
 	private void insertPartyContact(Connection conn, PartyContact partyContact) throws Exception  {
-		logger.info(">>> start fun:insertPartyContact");
 		PreparedStatement pstmt = null;
 
 		String sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
 				+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
-		logger.info(">>> sql={}, email={}", sql, partyContact.getEmail());
 		int count = getCount(conn, sql);
-		logger.info(">>> sinkTablePartyContact={}, count={}", config.sinkTablePartyContact, count);
 		if (count == 0) {
 			sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
 					+ " values (?,?,?,?,?,?,?,?,?)";
-			logger.info(">>> sql={}", sql);
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setInt(1, partyContact.getRoleType());
 			pstmt.setLong(2, partyContact.getListId());
@@ -532,20 +525,13 @@ public class ConsumerApp {
 			pstmt.executeUpdate();
 			pstmt.close();
 
-			logger.info(">>> ok1");
-
 			String address1 = getAddress1FromPartyContact(conn, partyContact.getAddressId());
-			logger.info(">>> address1={}", address1);
 
 			if (address1 == null) {
 				address1 = getAddress1FromPartyContactTemp(conn, partyContact.getAddressId());
 
-				logger.info(">>> aa address1={}", address1);
-
 				// delete PartyContactTemp
 				deletePartyContactTemp(conn, partyContact.getAddressId());
-
-				logger.info(">>> bb");
 			} 
 			// update address1
 			sql = "update " + config.sinkTablePartyContact + " set ADDRESS_1 = ? where role_type = ? and list_id = ?";
@@ -559,7 +545,6 @@ public class ConsumerApp {
 			pstmt.executeUpdate();
 			pstmt.close();
 
-			logger.info(">>> ok2");
 		} else {
 			// record exists, error
 			String error = String.format("table=%s record already exists, role_type=%d, list_id=%d", config.sinkTablePartyContact, partyContact.getRoleType(), partyContact.getListId());
@@ -592,10 +577,8 @@ public class ConsumerApp {
 				pstmt.executeUpdate();
 				pstmt.close();
 
-				logger.info(">>> no address exists, insert sql={} ", sql);
 			} else {
 				// update party contact
-				logger.info(">>> update party contact address");
 				sql = "update "  + config.sinkTablePartyContact + " set address_1 = ? where address_id = ?";
 				pstmt = conn.prepareStatement(sql);
 				pstmt.setString(1, address.getAddress1());

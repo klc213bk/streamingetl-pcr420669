@@ -640,7 +640,7 @@ public class TestApp {
 
 	}
 
-	public void testSamples() {
+	public void testSamples() throws Exception {
 
 		try {
 
@@ -672,7 +672,7 @@ public class TestApp {
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			logger.error(e.getMessage());
+			throw e;
 		} 
 	}
 	private void testInit() throws Exception {
