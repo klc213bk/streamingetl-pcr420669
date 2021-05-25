@@ -25,10 +25,7 @@ public class Config {
 	public String sinkTablePartyContactTemp;
 	public String sinkTableStreamingEtlHealth;
 	public String bootstrapServers;
-	public String groupId;
-	public List<String> topicList;
-	public String runResultFile;
-
+	
 	public static Config getConfig(String fileName) throws Exception {
 		ClassLoader loader = Thread.currentThread().getContextClassLoader();
 
@@ -55,10 +52,6 @@ public class Config {
 			config.sinkTableStreamingEtlHealth=prop.getProperty("sink.table.streaming_etl_health");
 					
 			config.bootstrapServers = prop.getProperty("bootstrap.servers");
-			config.groupId = prop.getProperty("group.id");
-			String[] topicArr = prop.getProperty("topics").split(",");
-			config.topicList = Arrays.asList(topicArr);
-			config.runResultFile = prop.getProperty("run.result.file");
 			
 			return config;
 		} catch (Exception e) {
