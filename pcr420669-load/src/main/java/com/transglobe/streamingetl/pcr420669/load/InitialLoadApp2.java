@@ -422,7 +422,11 @@ public class InitialLoadApp2 {
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + config.sinkTablePartyContactTemp + " (ADDRESS_ID) PARALLEL 8");
 		logger.info(">>>>> create index temp address id span={}", (System.currentTimeMillis() - t0));
 
+		t0 = System.currentTimeMillis();
+		createIndex("CREATE INDEX IDX_STREAMING_ETL_HEALTH_1 ON " + config.sinkTableStreamingEtlHealth + " (CDC_TIME) PARALLEL 8");
+		logger.info(">>>>> create index streamingetlhealth cdc_time span={}", (System.currentTimeMillis() - t0));
 
+		
 		/*
 		List<String> indexSqlList = new ArrayList<>();
 		indexSqlList.add("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + config.sinkTablePartyContact + " (MOBILE_TEL)");
