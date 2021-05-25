@@ -15,12 +15,15 @@ public class Config {
 	public String sourceTableInsuredList;
 	public String sourceTableContractBene;
 	public String sourceTableAddress;
+	public String sourceTableStreamingEtlHealthCdc;
+	
 	public String sinkDbDriver;
 	public String sinkDbUrl;
 //	public String sinkDbUsername;
 //	public String sinkDbPassword;
 	public String sinkTablePartyContact;
 	public String sinkTablePartyContactTemp;
+	public String sinkTableStreamingEtlHealth;
 	public String bootstrapServers;
 	public String groupId;
 	public List<String> topicList;
@@ -41,6 +44,7 @@ public class Config {
 			config.sourceTableInsuredList = prop.getProperty("source.table.insured_list");
 			config.sourceTableContractBene = prop.getProperty("source.table.contract_bene");
 			config.sourceTableAddress = prop.getProperty("source.table.address");
+			config.sourceTableStreamingEtlHealthCdc = prop.getProperty("source.table.streaming.etl.health.cdc");
 
 			config.sinkDbDriver = prop.getProperty("sink.db.driver");
 			config.sinkDbUrl = prop.getProperty("sink.db.url");
@@ -48,7 +52,8 @@ public class Config {
 //			config.sinkDbPassword = prop.getProperty("sink.db.password");
 			config.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			config.sinkTablePartyContactTemp = prop.getProperty("sink.table.party_contact_temp");
-			
+			config.sinkTableStreamingEtlHealth=prop.getProperty("sink.table.streaming_etl_health");
+					
 			config.bootstrapServers = prop.getProperty("bootstrap.servers");
 			config.groupId = prop.getProperty("group.id");
 			String[] topicArr = prop.getProperty("topics").split(",");

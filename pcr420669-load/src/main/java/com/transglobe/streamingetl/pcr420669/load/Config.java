@@ -21,6 +21,7 @@ public class Config {
 	public String sinkDbUrl;
 	public String sinkTablePartyContact;
 	public String sinkTablePartyContactTemp;
+	public String sinkTableStreamingEtlHealth;
 
 
 	public static Config getConfig(String fileName) throws Exception {
@@ -47,6 +48,7 @@ public class Config {
 			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
 			dbConfig.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			dbConfig.sinkTablePartyContactTemp = prop.getProperty("sink.table.party_contact_temp");
+			dbConfig.sinkTableStreamingEtlHealth = prop.getProperty("sink.table.streaming_etl_health");
 
 			return dbConfig;
 		} catch (Exception e) {

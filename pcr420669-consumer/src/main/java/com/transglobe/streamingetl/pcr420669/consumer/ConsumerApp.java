@@ -40,6 +40,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.transglobe.streamingetl.pcr420669.consumer.model.Address;
 import com.transglobe.streamingetl.pcr420669.consumer.model.PartyContact;
+import com.transglobe.streamingetl.pcr420669.consumer.model.StreamingEtlHealthCdc;
 
 public class ConsumerApp {
 
@@ -55,6 +56,8 @@ public class ConsumerApp {
 
 	private BasicDataSource connPool;
 
+	private String streamingEtlHealthCdcTableName;
+	
 	public ConsumerApp(String fileName) throws Exception {
 		logger.info(">>>>>config fileName={}", fileName);
 		config = Config.getConfig(fileName);
@@ -65,6 +68,12 @@ public class ConsumerApp {
 		connPool.setPassword(null);
 		connPool.setDriverClassName(config.sinkDbDriver);
 		connPool.setMaxTotal(5);
+		
+		logger.info(">>>>>cdc={}", config.sourceTableStreamingEtlHealthCdc);
+		
+		String[] arr = config.sourceTableStreamingEtlHealthCdc.split("\\.");
+		streamingEtlHealthCdcTableName = arr[1];
+		
 	}
 	public static void main(String[] args) {
 
@@ -112,7 +121,7 @@ public class ConsumerApp {
 					Connection conn = connPool.getConnection();
 					try {
 						for (ConsumerRecord<String, String> record : records) {
-//							logger.info(">>>Topic: {}, Partition: {}, Offset: {}, key: {}, value: {}", record.topic(), record.partition(), record.offset(), record.key(), record.value());
+							logger.info(">>>Topic: {}, Partition: {}, Offset: {}, key: {}, value: {}", record.topic(), record.partition(), record.offset(), record.key(), record.value());
 							ObjectMapper objectMapper = new ObjectMapper();
 							objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
@@ -124,8 +133,11 @@ public class ConsumerApp {
 								//	logger.info("   >>>record.value()={}", record.value());
 
 								String operation = payload.get("OPERATION").asText();
-								logger.info("   >>>operation={}", operation);
-								if ("INSERT".equals(operation)) {
+								logger.info("   >>>operation={}, TABLE_NAME={}", operation, payload.get("TABLE_NAME").asText());
+								if (StringUtils.equals(streamingEtlHealthCdcTableName, payload.get("TABLE_NAME").asText())) {
+									logger.info("   >>>doHealth");
+									doHealth(conn, objectMapper, payload);
+								} else if ("INSERT".equals(operation)) {
 									logger.info("   >>>doInsert");
 									doInsert(conn, objectMapper, payload);
 //									logger.info("   >>>doInsert DONE!!!");
@@ -197,6 +209,14 @@ public class ConsumerApp {
 		} catch (Exception e) {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 		}
+	}
+	private void doHealth(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
+		String data = payload.get("data").toString();
+		Long cdcTime = Long.valueOf(payload.get("TIMESTAMP").toString());
+		StreamingEtlHealthCdc healthCdc = objectMapper.readValue(data, StreamingEtlHealthCdc.class);
+
+		insertStreamingEtlHealth(conn, healthCdc, cdcTime);
+		
 	}
 	private void doInsert(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
@@ -586,6 +606,30 @@ public class ConsumerApp {
 				pstmt.executeUpdate();
 				pstmt.close();
 			}
+
+		} finally {
+			if (pstmt != null) pstmt.close();
+		}
+
+	}
+	private void insertStreamingEtlHealth(Connection conn, StreamingEtlHealthCdc healthSrc, long cdcTime) throws Exception {
+
+		String sql = null;
+		PreparedStatement pstmt = null;
+		try {
+			sql = "insert into " + config.sinkTableStreamingEtlHealth 
+					+ " (id,cdc_time,logminer_id,logminer_time,consumer_id,consumer_time) "
+					+ " values (?, ?, ?, ?, ? ,?)";
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setLong(1, System.currentTimeMillis());
+			pstmt.setTimestamp(2, new java.sql.Timestamp(healthSrc.getCdctime()));
+			pstmt.setInt(3, 1);
+			pstmt.setTimestamp(4, new java.sql.Timestamp(cdcTime));
+			pstmt.setInt(5, 1);
+			pstmt.setTimestamp(6, new java.sql.Timestamp(System.currentTimeMillis()));
+			
+			pstmt.executeUpdate();
+			pstmt.close();
 
 		} finally {
 			if (pstmt != null) pstmt.close();

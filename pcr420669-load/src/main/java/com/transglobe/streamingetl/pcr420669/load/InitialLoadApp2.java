@@ -53,6 +53,7 @@ public class InitialLoadApp2 {
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_TEMP_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT_TEMP.sql";
+	private static final String CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME = "createtable-T_STREAMING_ETL_HEALTH.sql";
 
 	private static final int THREADS = 20;
 
@@ -114,8 +115,9 @@ public class InitialLoadApp2 {
 		logger.info(">>>>>profileActive={}", profileActive);
 		try {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
-			String createTableFile = StringUtils.isBlank(profileActive)? CREATE_TABLE_FILE_NAME : profileActive + "/" + CREATE_TABLE_FILE_NAME;
-			String createTempTableFile = StringUtils.isBlank(profileActive)? CREATE_TEMP_TABLE_FILE_NAME : profileActive + "/" + CREATE_TEMP_TABLE_FILE_NAME;
+			String createTableFile = CREATE_TABLE_FILE_NAME;
+			String createTempTableFile = CREATE_TEMP_TABLE_FILE_NAME;
+			String createStreamingEtlHealthTableFile = CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME;
 
 			InitialLoadApp2 app = new InitialLoadApp2(configFile);
 
@@ -123,11 +125,14 @@ public class InitialLoadApp2 {
 			logger.info(">>>  Start: dropTable, tableName={}", app.config.sinkTablePartyContact);
 			app.dropTable(app.config.sinkTablePartyContact);
 			app.dropTable(app.config.sinkTablePartyContactTemp);
+			app.dropTable(app.config.sinkTableStreamingEtlHealth);
 			logger.info(">>>  End: dropTable DONE!!!");
 
 			logger.info(">>>  Start: createTable, tableName={}, createTableFile={}", app.config.sinkTablePartyContact, createTableFile);			
 			app.createTable(app.config.sinkTablePartyContact, createTableFile);
 			app.createTable(app.config.sinkTablePartyContactTemp, createTempTableFile);
+			app.createTable(app.config.sinkTableStreamingEtlHealth, createStreamingEtlHealthTableFile);
+			
 			logger.info(">>>  End: createTable DONE!!!");
 
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
