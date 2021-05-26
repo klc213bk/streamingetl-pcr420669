@@ -47,23 +47,19 @@ public class ConsumerLoop implements Runnable {
 
 	public ConsumerLoop(int id,
 			String groupId, 
-			List<String> topics, Config config) {
+			List<String> topics, 
+			Config config,
+			BasicDataSource connPool) {
 		this.id = id;
 		this.topics = topics;
 		this.config = config;
+		this.connPool = connPool;
 		Properties props = new Properties();
 		props.put("bootstrap.servers", config.bootstrapServers);
 		props.put("group.id", groupId);
 		props.put("key.deserializer", StringDeserializer.class.getName());
 		props.put("value.deserializer", StringDeserializer.class.getName());
 		this.consumer = new KafkaConsumer<>(props);
-
-		connPool = new BasicDataSource();
-		connPool.setUrl(config.sinkDbUrl);
-		connPool.setUsername(null);
-		connPool.setPassword(null);
-		connPool.setDriverClassName(config.sinkDbDriver);
-		connPool.setMaxTotal(2);
 
 		String[] arr = config.sourceTableStreamingEtlHealthCdc.split("\\.");
 		streamingEtlHealthCdcTableName = arr[1];

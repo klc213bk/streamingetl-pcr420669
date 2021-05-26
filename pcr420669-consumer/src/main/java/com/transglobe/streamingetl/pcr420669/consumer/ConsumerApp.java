@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -21,6 +22,8 @@ public class ConsumerApp {
 	
 	private static final int NUM_CONSUMERS = 1;
 
+	private static BasicDataSource connPool;
+	
 	public static void main(String[] args) { 
 		String profileActive = System.getProperty("profile.active", "");
 		String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
@@ -41,11 +44,20 @@ public class ConsumerApp {
 				"ebao.cdc.test_t_address.0",
 				"ebao.cdc.t_streaming_etl_health_cdc.0"
 				);
+		
+		
+		connPool = new BasicDataSource();
+		connPool.setUrl(config.sinkDbUrl);
+		connPool.setUsername(null);
+		connPool.setPassword(null);
+		connPool.setDriverClassName(config.sinkDbDriver);
+		connPool.setMaxTotal(NUM_CONSUMERS);
+		
 		ExecutorService executor = Executors.newFixedThreadPool(NUM_CONSUMERS);
 
 		final List<ConsumerLoop> consumers = new ArrayList<>();
 		for (int i = 0; i < NUM_CONSUMERS; i++) {
-			ConsumerLoop consumer = new ConsumerLoop(i, groupId, topics, config);
+			ConsumerLoop consumer = new ConsumerLoop(i, groupId, topics, config, connPool);
 			consumers.add(consumer);
 			executor.submit(consumer);
 		}
