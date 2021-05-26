@@ -6,7 +6,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -16,7 +15,6 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +34,6 @@ public class ConsumerLoop implements Runnable {
 	private static final Integer CONTRACT_BENE_ROLE_TYPE = 3;
 
 	private final KafkaConsumer<String, String> consumer;
-	private final List<String> topics;
 	private final int id;
 
 	private Config config;
@@ -46,12 +43,10 @@ public class ConsumerLoop implements Runnable {
 	private String streamingEtlHealthCdcTableName;
 
 	public ConsumerLoop(int id,
-			String groupId, 
-			List<String> topics, 
+			String groupId,  
 			Config config,
 			BasicDataSource connPool) {
 		this.id = id;
-		this.topics = topics;
 		this.config = config;
 		this.connPool = connPool;
 		Properties props = new Properties();
@@ -69,7 +64,7 @@ public class ConsumerLoop implements Runnable {
 	@Override
 	public void run() {
 		try {
-			consumer.subscribe(topics);
+			consumer.subscribe(config.topicList);
 
 			while (true) {
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
@@ -158,7 +153,7 @@ public class ConsumerLoop implements Runnable {
 			pstmt.setTimestamp(2, new java.sql.Timestamp(healthSrc.getCdctime()));
 			pstmt.setString(3, "Logminer-1");
 			pstmt.setTimestamp(4, new java.sql.Timestamp(logminerTime));
-			pstmt.setString(5, "pcr42009" + "-" + id);
+			pstmt.setString(5, "pcr420669" + "-" + id);
 			pstmt.setTimestamp(6, new java.sql.Timestamp(System.currentTimeMillis()));
 			
 			pstmt.executeUpdate();

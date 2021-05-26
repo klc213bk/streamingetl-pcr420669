@@ -37,13 +37,13 @@ public class ConsumerApp {
 		}
 
 		String groupId = GROUP_ID;
-		List<String> topics = Arrays.asList(
-				"ebao.cdc.test_t_policy_holder.0",
-				"ebao.cdc.test_t_insured_list.0",
-				"ebao.cdc.test_t_contract_bene.0",
-				"ebao.cdc.test_t_address.0",
-				"ebao.cdc.t_streaming_etl_health_cdc.0"
-				);
+//		List<String> topics = Arrays.asList(
+//				"ebao.cdc.test_t_policy_holder.0",
+//				"ebao.cdc.test_t_insured_list.0",
+//				"ebao.cdc.test_t_contract_bene.0",
+//				"ebao.cdc.test_t_address.0",
+//				"ebao.cdc.t_streaming_etl_health_cdc.0"
+//				);
 		
 		
 		connPool = new BasicDataSource();
@@ -57,7 +57,7 @@ public class ConsumerApp {
 
 		final List<ConsumerLoop> consumers = new ArrayList<>();
 		for (int i = 0; i < NUM_CONSUMERS; i++) {
-			ConsumerLoop consumer = new ConsumerLoop(i, groupId, topics, config, connPool);
+			ConsumerLoop consumer = new ConsumerLoop(i, groupId, config, connPool);
 			consumers.add(consumer);
 			executor.submit(consumer);
 		}

@@ -917,7 +917,7 @@ public class TestApp {
 			}
 
 			// check spring boot result for address
-			List<PartyContact> contactListc = queryPartyContact("address", partyContact.getAddress1());
+			List<PartyContact> contactListc = queryPartyContact("address1", partyContact.getAddress1());
 			int retCountc = contactListc.size();
 			if ( StringUtils.isBlank(partyContact.getAddress1())) {
 				if ( retCountc != 0) {
