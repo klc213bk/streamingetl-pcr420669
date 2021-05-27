@@ -64,59 +64,76 @@ public class ConsumerLoop implements Runnable {
 	@Override
 	public void run() {
 
-		String payloadStr = null;
 		try {
 			consumer.subscribe(config.topicList);
 
 			while (true) {
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
 
+				if (records.count() > 0) {
+					Connection conn = null;
+					int tries = 0;
 
+					while (connPool.isClosed()) {
+						tries++;
+						try {
+							connPool.restart();
 
-				for (ConsumerRecord<String, String> record : records) {
-					Connection conn = connPool.getConnection();
+							logger.info("   >>> Connection Pool restart, try {} times", tries);
 
-					Map<String, Object> data = new HashMap<>();
-					data.put("partition", record.partition());
-					data.put("offset", record.offset());
-					data.put("value", record.value());
-					//					System.out.println(this.id + ": " + data);
+							Thread.sleep(30000);
+						} catch (Exception e) {
+							logger.error(">>> message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+						}
 
-					ObjectMapper objectMapper = new ObjectMapper();
-					objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+					}
+					conn = connPool.getConnection();
 
-					JsonNode jsonNode = objectMapper.readTree(record.value());
-					JsonNode payload = jsonNode.get("payload");
-					payloadStr = payload.toString();
+					conn.setAutoCommit(false);
+					for (ConsumerRecord<String, String> record : records) {
+						Map<String, Object> data = new HashMap<>();
+						try {	
+							data.put("partition", record.partition());
+							data.put("offset", record.offset());
+							data.put("value", record.value());
+							//					System.out.println(this.id + ": " + data);
 
-					String operation = payload.get("OPERATION").asText();
+							ObjectMapper objectMapper = new ObjectMapper();
+							objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-					String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
-					logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
-					if (StringUtils.equals(streamingEtlHealthCdcTableName, payload.get("TABLE_NAME").asText())) {
-						doHealth(conn, objectMapper, payload);
-					} else if ("INSERT".equals(operation)) {
-						//						logger.info("   >>>doInsert");
-						doInsert(conn, objectMapper, payload);
-						//						logger.info("   >>>doInsert DONE!!!");
-					} else if ("UPDATE".equals(operation)) {
-						//						logger.info("   >>>doUpdate");
-						doUpdate(conn, objectMapper, payload);
-						//						logger.info("   >>>doUpdate DONE!!!");
-					} /*else if ("DELETE".equals(operation)) {
-//						logger.info("   >>>doDelete");
-//						doDelete(conn, objectMapper, payload);
-//						logger.info("   >>>doDelete DONE!!!");
-					}*/
+							JsonNode jsonNode = objectMapper.readTree(record.value());
+							JsonNode payload = jsonNode.get("payload");
+							//	payloadStr = payload.toString();
 
-					conn.close();	
+							String operation = payload.get("OPERATION").asText();
+
+							String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
+							logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
+
+							if (StringUtils.equals(streamingEtlHealthCdcTableName, payload.get("TABLE_NAME").asText())) {
+								doHealth(conn, objectMapper, payload);
+							} else if ("INSERT".equals(operation)) {
+								//						logger.info("   >>>doInsert");
+								doInsert(conn, objectMapper, payload);
+								//						logger.info("   >>>doInsert DONE!!!");
+							} else if ("UPDATE".equals(operation)) {
+								//						logger.info("   >>>doUpdate");
+								doUpdate(conn, objectMapper, payload);
+								//						logger.info("   >>>doUpdate DONE!!!");
+							} 
+						} catch(Exception e) {
+							logger.error(">>>message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), data);
+						}
+					}
+					conn.commit();
+					conn.close();
 				}
 
 
 			}
 		} catch (Exception e) {
 			// ignore for shutdown 
-			logger.error(">>>message={}, stack trace={}, payload str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), payloadStr);
+			logger.error(">>>message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 
 		} finally {
 			consumer.close();
@@ -444,7 +461,7 @@ public class ConsumerLoop implements Runnable {
 			// check if address id is changed
 			if (oldPartyContact.getAddressId().longValue() == newPartyContact.getAddressId().longValue()) {
 				// address id has not changed
-				
+
 				sql = "update " + config.sinkTablePartyContact 
 						+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?" 
 						+ " where ROLE_TYPE = ? and LIST_ID = ?";
