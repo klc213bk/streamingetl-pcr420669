@@ -63,7 +63,7 @@ public class ConsumerLoop implements Runnable {
 
 	@Override
 	public void run() {
-		
+
 		String payloadStr = null;
 		try {
 			consumer.subscribe(config.topicList);
@@ -71,16 +71,16 @@ public class ConsumerLoop implements Runnable {
 			while (true) {
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
 
-				
+
 
 				for (ConsumerRecord<String, String> record : records) {
 					Connection conn = connPool.getConnection();
-					
+
 					Map<String, Object> data = new HashMap<>();
 					data.put("partition", record.partition());
 					data.put("offset", record.offset());
 					data.put("value", record.value());
-//					System.out.println(this.id + ": " + data);
+					//					System.out.println(this.id + ": " + data);
 
 					ObjectMapper objectMapper = new ObjectMapper();
 					objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
@@ -88,31 +88,31 @@ public class ConsumerLoop implements Runnable {
 					JsonNode jsonNode = objectMapper.readTree(record.value());
 					JsonNode payload = jsonNode.get("payload");
 					payloadStr = payload.toString();
-					
+
 					String operation = payload.get("OPERATION").asText();
-					
+
 					String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
 					logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
 					if (StringUtils.equals(streamingEtlHealthCdcTableName, payload.get("TABLE_NAME").asText())) {
 						doHealth(conn, objectMapper, payload);
 					} else if ("INSERT".equals(operation)) {
-//						logger.info("   >>>doInsert");
+						//						logger.info("   >>>doInsert");
 						doInsert(conn, objectMapper, payload);
-//						logger.info("   >>>doInsert DONE!!!");
+						//						logger.info("   >>>doInsert DONE!!!");
 					} else if ("UPDATE".equals(operation)) {
-//						logger.info("   >>>doUpdate");
+						//						logger.info("   >>>doUpdate");
 						doUpdate(conn, objectMapper, payload);
-//						logger.info("   >>>doUpdate DONE!!!");
+						//						logger.info("   >>>doUpdate DONE!!!");
 					} /*else if ("DELETE".equals(operation)) {
 //						logger.info("   >>>doDelete");
 //						doDelete(conn, objectMapper, payload);
 //						logger.info("   >>>doDelete DONE!!!");
 					}*/
-					
+
 					conn.close();	
 				}
 
-				
+
 			}
 		} catch (Exception e) {
 			// ignore for shutdown 
@@ -120,7 +120,7 @@ public class ConsumerLoop implements Runnable {
 
 		} finally {
 			consumer.close();
-			
+
 			if (connPool != null) {
 				try {
 					connPool.close();
@@ -134,14 +134,14 @@ public class ConsumerLoop implements Runnable {
 	public void shutdown() {
 		consumer.wakeup();
 	}
-	
+
 	private void doHealth(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String data = payload.get("data").toString();
 		Long logminerTime = Long.valueOf(payload.get("TIMESTAMP").toString());
 		StreamingEtlHealthCdc healthCdc = objectMapper.readValue(data, StreamingEtlHealthCdc.class);
 
 		insertStreamingEtlHealth(conn, healthCdc, logminerTime);
-		
+
 	}
 	private void insertStreamingEtlHealth(Connection conn, StreamingEtlHealthCdc healthSrc, long logminerTime) throws Exception {
 
@@ -158,7 +158,7 @@ public class ConsumerLoop implements Runnable {
 			pstmt.setTimestamp(4, new java.sql.Timestamp(logminerTime));
 			pstmt.setString(5, "pcr420669" + "-" + id);
 			pstmt.setTimestamp(6, new java.sql.Timestamp(System.currentTimeMillis()));
-			
+
 			pstmt.executeUpdate();
 			pstmt.close();
 
@@ -175,9 +175,9 @@ public class ConsumerLoop implements Runnable {
 		if (config.sourceTablePolicyHolder.equals(fullTableName)
 				|| config.sourceTableInsuredList.equals(fullTableName)
 				|| config.sourceTableContractBene.equals(fullTableName)) {
-//			logger.info("   >>>insert partyContact");
+			//			logger.info("   >>>insert partyContact");
 			PartyContact partyContact = objectMapper.readValue(data, PartyContact.class);
-//			logger.info(">>> partyContact={}", partyContact);
+			//			logger.info(">>> partyContact={}", partyContact);
 
 			if (config.sourceTablePolicyHolder.equals(fullTableName)) {
 				partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
@@ -187,19 +187,19 @@ public class ConsumerLoop implements Runnable {
 				partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 				partyContact.setEmail(null); // 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 			}
-//			logger.info(">>> start insertPartyContact");
+			//			logger.info(">>> start insertPartyContact");
 			insertPartyContact(conn, partyContact);
 
 		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			Address address = objectMapper.readValue(data, Address.class);
-//			logger.info(">>> address={}", address);
-//			logger.info("   >>>insert Address");
+			//			logger.info(">>> address={}", address);
+			//			logger.info("   >>>insert Address");
 			insertAddress(conn, address);
 		}
 
 
 	}
-	
+
 	private void insertPartyContact(Connection conn, PartyContact partyContact) throws Exception  {
 		PreparedStatement pstmt = null;
 
@@ -233,8 +233,8 @@ public class ConsumerLoop implements Runnable {
 			} 
 			// update address1
 			sql = "update " + config.sinkTablePartyContact + " set ADDRESS_1 = ? where role_type = ? and list_id = ?";
-//			logger.info(">>> update={}, ADDRESS_1={},role_type={}, list_id={}", 
-//					sql, address1, partyContact.getRoleType(), partyContact.getListId());
+			//			logger.info(">>> update={}, ADDRESS_1={},role_type={}, list_id={}", 
+			//					sql, address1, partyContact.getRoleType(), partyContact.getListId());
 
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setString(1, address1);
@@ -249,7 +249,7 @@ public class ConsumerLoop implements Runnable {
 			throw new Exception(error);
 		}
 	}
-	
+
 	private void insertAddress(Connection conn, Address address) throws Exception {
 
 		String sql = "select ROLE_TYPE,LIST_ID from " + config.sinkTablePartyContact + " where address_id = ?";
@@ -291,7 +291,7 @@ public class ConsumerLoop implements Runnable {
 		}
 
 	}
-	
+
 	private Integer getCount(Connection conn, String sql) throws SQLException {
 
 		PreparedStatement pstmt = conn.prepareStatement(sql);
@@ -329,15 +329,15 @@ public class ConsumerLoop implements Runnable {
 
 		return address1;
 	}
-	
+
 	private String getAddress1FromPartyContactTemp(Connection conn, Long addressId) throws SQLException {
-		
+
 		PreparedStatement pstmt = null;
 		ResultSet resultSet = null;
 		String address1 = null;
 		try {
 			String sql = "select ADDRESS_1 from " + config.sinkTablePartyContactTemp + " where address_id = " + addressId;
-			
+
 			pstmt = conn.prepareStatement(sql);
 			resultSet = pstmt.executeQuery();
 
@@ -345,7 +345,7 @@ public class ConsumerLoop implements Runnable {
 				address1 = resultSet.getString("ADDRESS_1");
 				break;
 			}
-		
+
 			resultSet.close();
 			pstmt.close();
 
@@ -356,7 +356,7 @@ public class ConsumerLoop implements Runnable {
 
 		return address1;
 	}
-	
+
 	private void deletePartyContactTemp(Connection conn, Long addressId) throws SQLException {
 		PreparedStatement pstmt = null;
 		try {
@@ -372,17 +372,17 @@ public class ConsumerLoop implements Runnable {
 	}
 	private void doUpdate(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
-//		logger.info(">>> fulltableName={}", fullTableName);
+		//		logger.info(">>> fulltableName={}", fullTableName);
 		String data = payload.get("data").toString();
 		String before = payload.get("before").toString();
-		
+
 		if (config.sourceTablePolicyHolder.equals(fullTableName)
 				|| config.sourceTableInsuredList.equals(fullTableName)
 				|| config.sourceTableContractBene.equals(fullTableName)) {
 			PartyContact oldpartyContact = objectMapper.readValue(before, PartyContact.class);
 			PartyContact newpartyContact = objectMapper.readValue(data, PartyContact.class);
-//			logger.info(">>> oldpartyContact={}", oldpartyContact);
-//			logger.info(">>> newpartyContact={}", newpartyContact);
+			//			logger.info(">>> oldpartyContact={}", oldpartyContact);
+			//			logger.info(">>> newpartyContact={}", newpartyContact);
 
 			if (config.sourceTablePolicyHolder.equals(fullTableName)) {
 				oldpartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
@@ -401,8 +401,8 @@ public class ConsumerLoop implements Runnable {
 		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			Address oldAddress = objectMapper.readValue(before, Address.class);
 			Address newAddress = objectMapper.readValue(data, Address.class);
-//			logger.info(">>> oldAddress={}", oldAddress);
-//			logger.info(">>> newAddress={}", newAddress);
+			//			logger.info(">>> oldAddress={}", oldAddress);
+			//			logger.info(">>> newAddress={}", newAddress);
 
 			updateAddress(conn, oldAddress, newAddress);
 		}
@@ -444,6 +444,7 @@ public class ConsumerLoop implements Runnable {
 			// check if address id is changed
 			if (oldPartyContact.getAddressId().longValue() == newPartyContact.getAddressId().longValue()) {
 				// address id has not changed
+				
 				sql = "update " + config.sinkTablePartyContact 
 						+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?" 
 						+ " where ROLE_TYPE = ? and LIST_ID = ?";
@@ -461,25 +462,27 @@ public class ConsumerLoop implements Runnable {
 				// address id has changed
 				String address = getAddress1FromPartyContact(conn, newPartyContact.getAddressId());
 				if (StringUtils.isBlank(address)) {
-					String address2 = getAddress1FromPartyContactTemp(conn, newPartyContact.getAddressId());
+					String addressTemp = getAddress1FromPartyContactTemp(conn, newPartyContact.getAddressId());
 
-					deletePartyContactTemp(conn, newPartyContact.getAddressId());
+					if (StringUtils.isNotBlank(addressTemp)) {
+						deletePartyContactTemp(conn, newPartyContact.getAddressId());
 
-					sql = "update " + config.sinkTablePartyContact 
-							+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=?" 
-							+ " where ROLE_TYPE = ? and LIST_ID = ?";
-					pstmt = conn.prepareStatement(sql);
-					pstmt.setLong(1, newPartyContact.getPolicyId());
-					pstmt.setString(2, newPartyContact.getName());
-					pstmt.setString(3, newPartyContact.getCertiCode());
-					pstmt.setString(4, newPartyContact.getMobileTel());
-					pstmt.setString(5, newPartyContact.getEmail());
-					pstmt.setLong(6, newPartyContact.getAddressId());
-					pstmt.setString(7, address2);
-					pstmt.setInt(8, newPartyContact.getRoleType());
-					pstmt.setLong(9, newPartyContact.getListId());
+						sql = "update " + config.sinkTablePartyContact 
+								+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=?" 
+								+ " where ROLE_TYPE = ? and LIST_ID = ?";
+						pstmt = conn.prepareStatement(sql);
+						pstmt.setLong(1, newPartyContact.getPolicyId());
+						pstmt.setString(2, newPartyContact.getName());
+						pstmt.setString(3, newPartyContact.getCertiCode());
+						pstmt.setString(4, newPartyContact.getMobileTel());
+						pstmt.setString(5, newPartyContact.getEmail());
+						pstmt.setLong(6, newPartyContact.getAddressId());
+						pstmt.setString(7, addressTemp);
+						pstmt.setInt(8, newPartyContact.getRoleType());
+						pstmt.setLong(9, newPartyContact.getListId());
 
-					pstmt.executeUpdate();
+						pstmt.executeUpdate();
+					}
 				} else {
 					sql = "update " + config.sinkTablePartyContact 
 							+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=?" 
