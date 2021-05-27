@@ -63,6 +63,8 @@ public class ConsumerLoop implements Runnable {
 
 	@Override
 	public void run() {
+		
+		String payloadStr = null;
 		try {
 			consumer.subscribe(config.topicList);
 
@@ -85,7 +87,8 @@ public class ConsumerLoop implements Runnable {
 
 					JsonNode jsonNode = objectMapper.readTree(record.value());
 					JsonNode payload = jsonNode.get("payload");
-
+					payloadStr = payload.toString();
+					
 					String operation = payload.get("OPERATION").asText();
 					
 					String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
@@ -113,7 +116,7 @@ public class ConsumerLoop implements Runnable {
 			}
 		} catch (Exception e) {
 			// ignore for shutdown 
-			logger.error(">>>message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+			logger.error(">>>message={}, stack trace={}, payload str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), payloadStr);
 
 		} finally {
 			consumer.close();
