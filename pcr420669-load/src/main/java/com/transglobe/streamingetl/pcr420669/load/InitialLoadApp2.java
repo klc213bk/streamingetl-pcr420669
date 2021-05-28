@@ -173,7 +173,7 @@ public class InitialLoadApp2 {
 			Connection sourceConn = this.sourceConnectionPool.getConnection();
 			Connection sinkConn = this.sinkConnectionPool.getConnection();
 
-			String sql = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
+			String sql = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,b.ADDRESS_1 from " + sourceTableName + " a left join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
 					+ " where " + startSeq + " <= a.list_id and a.list_id < " + endSeq ;
 			//		+ " and rownum < 10";
 			//	+ " fetch next 10 rows only";
