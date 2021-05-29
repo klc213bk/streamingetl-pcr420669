@@ -11,6 +11,7 @@ import java.util.Properties;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -456,12 +457,41 @@ public class ConsumerLoop implements Runnable {
 	private void updatePartyContact(Connection conn, PartyContact oldPartyContact, PartyContact newPartyContact) throws Exception  {
 		String sql = "";
 		PreparedStatement pstmt = null;
-
+		ResultSet rs = null;
 		try {
 			// check if address id is changed
 			if (oldPartyContact.getAddressId().longValue() == newPartyContact.getAddressId().longValue()) {
 				// address id has not changed
 
+				Long listId = null;
+				// check if list_id is null or not
+				if (oldPartyContact.getListId() == null) {
+					sql = "select list_id from " + config.sinkTablePartyContact
+							+ " where POLICY_ID=? and NAME=? and CERTI_CODE=? ";
+					pstmt = conn.prepareStatement(sql);
+					pstmt.setLong(1, oldPartyContact.getPolicyId());
+					pstmt.setString(2, oldPartyContact.getName());
+					pstmt.setString(3, oldPartyContact.getCertiCode());
+					
+					rs = pstmt.executeQuery();
+					
+					int i = 0;
+					while (rs.next()) {
+						i++;
+						listId = rs.getLong("LIST_ID");
+					}
+					if (i == 0) {
+						// no record, error
+						throw new Exception("No record in PartyContact, listId=" +  ToStringBuilder.reflectionToString(oldPartyContact));
+					} else if (i > 1) {
+						// multiple rows, error
+						throw new Exception("multiple rows in PartyContact, listId=" +  ToStringBuilder.reflectionToString(oldPartyContact));
+					}
+					rs.close();
+					pstmt.close();
+				} else {
+					listId = oldPartyContact.getListId();
+				}
 				sql = "update " + config.sinkTablePartyContact 
 						+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?" 
 						+ " where ROLE_TYPE = ? and LIST_ID = ?";
@@ -471,10 +501,11 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setString(3, newPartyContact.getCertiCode());
 				pstmt.setString(4, newPartyContact.getMobileTel());
 				pstmt.setString(5, newPartyContact.getEmail());
-				pstmt.setInt(6, newPartyContact.getRoleType());
-				pstmt.setLong(7, newPartyContact.getListId());
+				pstmt.setInt(6, oldPartyContact.getRoleType());
+				pstmt.setLong(7, listId);
 
 				pstmt.executeUpdate();
+				pstmt.close();
 			} else {
 				// address id has changed
 				String address = getAddress1FromPartyContact(conn, newPartyContact.getAddressId());
@@ -499,6 +530,8 @@ public class ConsumerLoop implements Runnable {
 						pstmt.setLong(9, newPartyContact.getListId());
 
 						pstmt.executeUpdate();
+						
+						pstmt.close();
 					}
 				} else {
 					sql = "update " + config.sinkTablePartyContact 
@@ -516,6 +549,7 @@ public class ConsumerLoop implements Runnable {
 					pstmt.setLong(9, newPartyContact.getListId());
 
 					pstmt.executeUpdate();
+					pstmt.close();
 				}
 			}
 		} finally {
