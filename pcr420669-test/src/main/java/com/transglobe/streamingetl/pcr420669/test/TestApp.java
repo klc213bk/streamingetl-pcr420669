@@ -47,10 +47,10 @@ public class TestApp {
 	private static int INSURED_LIST_ROLE_TYPE = 2;
 	private static int CONTRACT_BENE_ROLE_TYPE = 3;
 
-	private static String ADDRESS_SRC = "TEST_T_ADDRESS1";
-	private static String POLICY_HOLDER_SRC = "TEST_T_POLICY_HOLDER1";
-	private static String INSURED_LIST_SRC = "TEST_T_INSURED_LIST1";
-	private static String CONTRACT_BENE_SRC = "TEST_T_CONTRACT_BENE1";
+	private static String ADDRESS_SRC = "T_ADDRESS";
+	private static String POLICY_HOLDER_SRC = "T_POLICY_HOLDER";
+	private static String INSURED_LIST_SRC = "T_INSURED_LIST";
+	private static String CONTRACT_BENE_SRC = "T_CONTRACT_BENE";
 
 
 
@@ -71,12 +71,17 @@ public class TestApp {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
 
 			app = new TestApp(configFile);
-
-			app.testSamples();
-
-			app.testRandomInsertSamples(100);
+//
+//			app.testSamples();
+//
+//			app.testRandomInsertSamples(100);
+//			
+//			app.testRandomUpdateSamples(50);
 			
-			app.testRandomUpdateSamples(50);
+			app.testNullAddress1();
+			
+			app.testNullAddress2();
+			
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -143,11 +148,11 @@ public class TestApp {
 			}
 
 			// select list_ids
-			sql = "select 1 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + POLICY_HOLDER_SRC + " a inner join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
+			sql = "select 1 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + POLICY_HOLDER_SRC + " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
 					"union\n" + 
-					"select 2 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + INSURED_LIST_SRC + " a inner join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
+					"select 2 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + INSURED_LIST_SRC + " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
 					"union\n" + 
-					"select 3 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + CONTRACT_BENE_SRC + " a inner join " + ADDRESS_SRC + " b on a.address_id = b.address_id" ; 
+					"select 3 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + CONTRACT_BENE_SRC + " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id" ; 
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery();
 
@@ -265,7 +270,7 @@ public class TestApp {
 				}
 
 				sql = "select a.list_id, a.policy_id, a.name, a.certi_code, a.mobile_tel, a.email, a.address_id, b.address_1 from " 
-						+ table + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
+						+ table + " a left join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
 						+ " where list_id = ?";
 				pstmt = sourceConn.prepareStatement(sql);
 				pstmt.setLong(1, listId);
@@ -428,11 +433,11 @@ public class TestApp {
 			}
 
 			// select list_ids
-			sql = "select 1 AS ROLE_TYPE, list_id, a.policy_id, a.certi_code, a.email, a.mobile_tel, a.name, a.address_id, b.address_1 from " + config.sourceTablePolicyHolder + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id \n" + 
+			sql = "select 1 AS ROLE_TYPE, list_id, a.policy_id, a.certi_code, a.email, a.mobile_tel, a.name, a.address_id, b.address_1 from " + config.sourceTablePolicyHolder + " a left join " + config.sourceTableAddress + " b on a.address_id = b.address_id \n" + 
 					"union\n" + 
-					"select 2 AS ROLE_TYPE, list_id, a.policy_id, a.certi_code, a.email, a.mobile_tel, a.name, a.address_id, b.address_1 from " + config.sourceTableInsuredList + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id \n" + 
+					"select 2 AS ROLE_TYPE, list_id, a.policy_id, a.certi_code, a.email, a.mobile_tel, a.name, a.address_id, b.address_1 from " + config.sourceTableInsuredList + " a left join " + config.sourceTableAddress + " b on a.address_id = b.address_id \n" + 
 					"union\n" + 
-					"select 3 AS ROLE_TYPE, list_id, a.policy_id, a.certi_code, a.email, a.mobile_tel, a.name, a.address_id, b.address_1 from " + config.sourceTableContractBene + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id" ; 
+					"select 3 AS ROLE_TYPE, list_id, a.policy_id, a.certi_code, a.email, a.mobile_tel, a.name, a.address_id, b.address_1 from " + config.sourceTableContractBene + " a left join " + config.sourceTableAddress + " b on a.address_id = b.address_id" ; 
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery();
 
@@ -533,7 +538,7 @@ public class TestApp {
 				}
 
 				sql = "select a.list_id, a.policy_id, a.name, a.certi_code, a.mobile_tel, a.email, a.address_id, b.address_1 from " 
-						+ table + " a inner join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
+						+ table + " a left join " + config.sourceTableAddress + " b on a.address_id = b.address_id "
 						+ " where list_id = ?";
 				pstmt = sourceConn.prepareStatement(sql);
 				pstmt.setLong(1, listId);
@@ -1577,28 +1582,6 @@ public class TestApp {
 			sourceConn.setAutoCommit(false);
 			sinkConn.setAutoCommit(false);
 
-			/*
-			 * select c.list_id, d.list_id, c.address_id, c.address_1
-from 
-(
-select a.list_id, a.address_id, b.address_1 
-from test_t_policy_holder1 a
-inner join test_t_address1 b on a.address_id = b.address_id 
-) c
-inner join
-(
-select a.list_id, a.address_id, b.address_1 
-from test_t_insured_list1 a
-inner join test_t_address1 b on a.address_id = b.address_id
-) d
-on c.address_id = d.address_id;
-
-			 */
-			// policy_holder, list_id = 2668, address_id = 2907063
-			// policy_holder, list_id = 1875, address_id = 2907063
-			// insured_list, list_id = 12829474, address_id = 2907063
-			// insured_list, list_id = 12829474, address_id = 2907063
-
 			long selectedAddressId = 2907063;
 			long selectedPhListId1 = 2668;
 			long selectedIlListId1 = 12829474;
@@ -2072,5 +2055,192 @@ on c.address_id = d.address_id;
 			if (pstmt != null) pstmt.close();
 		}
 	}
+	private void testNullAddress1() throws Exception {
+		logger.info(">>>>>>>>>>>>>>>>>>>>> START -> testNullAddress1");
+	
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs;
+		String sql = "";
 
+		try {
+	
+			testInit();
+			
+			Class.forName(config.sourceDbDriver);
+			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			Class.forName(config.sinkDbDriver);
+			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
+
+			sourceConn.setAutoCommit(false);
+			sinkConn.setAutoCommit(false);
+
+			sql = "select * from " + CONTRACT_BENE_SRC
+					+ " where address_id is null";
+			pstmt = sourceConn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
+			Long selectedListId = null;
+			while (rs.next()) {
+				selectedListId = rs.getLong("LIST_ID");
+				break;
+			}
+			rs.close();
+			pstmt.close();
+			
+			if (selectedListId == null) {
+				throw new Exception("Error: selectedListId is null");
+			}
+			
+			sql = "insert into " + config.sourceTableContractBene 
+					+ " (select * from " + CONTRACT_BENE_SRC 
+					+ " where list_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedListId);
+			pstmt.executeUpdate();
+			pstmt.close();
+			sourceConn.commit();
+			
+			// insert one address
+			sql = "select * from " + ADDRESS_SRC 
+					+  " where address_1 is not null";
+			pstmt = sourceConn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
+			Long selectedAddressId = null;
+			while (rs.next()) {
+				selectedAddressId = rs.getLong("ADDRESS_ID");
+				break;
+			}
+			rs.close();
+			pstmt.close();
+			
+			sql = "insert into " + config.sourceTableAddress 
+					+ " (select * from " + ADDRESS_SRC 
+					+ " where address_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedAddressId);
+			pstmt.executeUpdate();
+			pstmt.close();
+			
+			sourceConn.commit();
+					
+			Thread.sleep(2000);
+			
+			
+			sql = "update " +  config.sourceTableContractBene 		
+					+ " set address_id=?";
+			
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedAddressId);
+			pstmt.executeUpdate();
+			pstmt.close();
+			
+			sourceConn.commit();
+			
+			logger.info(">>>>>>>>>>> End -> testNullAddress1 size={}    [  OK  ]");
+
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+		}
+	}
+	private void testNullAddress2() throws Exception {
+		logger.info(">>>>>>>>>>>>>>>>>>>>> START -> testNullAddress2");
+	
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs;
+		String sql = "";
+
+		try {
+	
+			testInit();
+			
+			Class.forName(config.sourceDbDriver);
+			//	logger.info(">>driver={}, sourceDbUrl={},sourceDbUsername={},sourceDbPassword={}", config.sourceDbDriver, config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+			sourceConn = DriverManager.getConnection(config.sourceDbUrl, config.sourceDbUsername, config.sourceDbPassword);
+
+			Class.forName(config.sinkDbDriver);
+			//	logger.info(">>driver={}, sinkDbUrl={},sinkDbUsername={},sinkDbPassword={}", config.sinkDbDriver, config.sinkDbUrl);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl, null, null);
+
+			sourceConn.setAutoCommit(false);
+			sinkConn.setAutoCommit(false);
+
+			sql = "select * from " + CONTRACT_BENE_SRC
+					+ " where address_id is null";
+			pstmt = sourceConn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
+			Long selectedAddressId = null;
+			Long selectedListId = null;
+			while (rs.next()) {
+				selectedListId = rs.getLong("LIST_ID");
+				selectedAddressId = rs.getLong("ADDRESS_ID");
+				break;
+			}
+			rs.close();
+			pstmt.close();
+			
+			// insert one address
+			sql = "insert into " + config.sourceTableAddress 
+					+ " (select * from " + ADDRESS_SRC 
+					+ " where address_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedAddressId);
+			pstmt.executeUpdate();
+			pstmt.close();
+			
+			sourceConn.commit();
+			
+			
+			// insert CONTRACT_BENE
+			sql = "insert into " + config.sourceTableContractBene 
+					+ " (select * from " + CONTRACT_BENE_SRC 
+					+ " where list_id = ?)";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, selectedListId);
+			pstmt.executeUpdate();
+			pstmt.close();
+			sourceConn.commit();
+			
+			
+			logger.info(">>>>>>>>>>> End -> testNullAddress2 size={}    [  OK  ]");
+
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					throw e;
+				}
+			}
+		}
+	}
 }

@@ -90,10 +90,11 @@ public class ConsumerLoop implements Runnable {
 					}
 					conn = connPool.getConnection();
 
-					conn.setAutoCommit(false);
+			
 					for (ConsumerRecord<String, String> record : records) {
 						Map<String, Object> data = new HashMap<>();
 						try {	
+							conn.setAutoCommit(false);
 							data.put("partition", record.partition());
 							data.put("offset", record.offset());
 							data.put("value", record.value());
@@ -109,8 +110,8 @@ public class ConsumerLoop implements Runnable {
 							String operation = payload.get("OPERATION").asText();
 
 							String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
-							logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
-
+						//	logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
+							logger.info("   >>>payload={}", payload.toPrettyString());
 							if (StringUtils.equals(streamingEtlHealthCdcTableName, payload.get("TABLE_NAME").asText())) {
 								doHealth(conn, objectMapper, payload);
 							} else if ("INSERT".equals(operation)) {
@@ -122,11 +123,12 @@ public class ConsumerLoop implements Runnable {
 								doUpdate(conn, objectMapper, payload);
 								//						logger.info("   >>>doUpdate DONE!!!");
 							} 
+							conn.commit();
 						} catch(Exception e) {
 							logger.error(">>>message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), data);
 						}
 					}
-					conn.commit();
+					
 					conn.close();
 				}
 
@@ -225,42 +227,46 @@ public class ConsumerLoop implements Runnable {
 				+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
 		int count = getCount(conn, sql);
 		if (count == 0) {
-			sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
-					+ " values (?,?,?,?,?,?,?,?,?)";
-			pstmt = conn.prepareStatement(sql);
-			pstmt.setInt(1, partyContact.getRoleType());
-			pstmt.setLong(2, partyContact.getListId());
-			pstmt.setLong(3, partyContact.getPolicyId());
-			pstmt.setString(4, partyContact.getName());
-			pstmt.setString(5, partyContact.getCertiCode());
-			pstmt.setString(6, partyContact.getMobileTel());
-			pstmt.setString(7, partyContact.getEmail());
-			pstmt.setLong(8, partyContact.getAddressId());
-			pstmt.setString(9, partyContact.getAddress1());
+			if (partyContact.getAddressId() == null) {
+				sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL) " 
+						+ " values (?,?,?,?,?,?,?)";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setInt(1, partyContact.getRoleType());
+				pstmt.setLong(2, partyContact.getListId());
+				pstmt.setLong(3, partyContact.getPolicyId());
+				pstmt.setString(4, partyContact.getName());
+				pstmt.setString(5, partyContact.getCertiCode());
+				pstmt.setString(6, partyContact.getMobileTel());
+				pstmt.setString(7, partyContact.getEmail());
 
-			pstmt.executeUpdate();
-			pstmt.close();
-
-			String address1 = getAddress1FromPartyContact(conn, partyContact.getAddressId());
-
-			if (address1 == null) {
+				pstmt.executeUpdate();
+				pstmt.close();
+			} else {
+				String address1 = null;
 				address1 = getAddress1FromPartyContactTemp(conn, partyContact.getAddressId());
-
-				// delete PartyContactTemp
-				deletePartyContactTemp(conn, partyContact.getAddressId());
-			} 
-			// update address1
-			sql = "update " + config.sinkTablePartyContact + " set ADDRESS_1 = ? where role_type = ? and list_id = ?";
-			//			logger.info(">>> update={}, ADDRESS_1={},role_type={}, list_id={}", 
-			//					sql, address1, partyContact.getRoleType(), partyContact.getListId());
-
-			pstmt = conn.prepareStatement(sql);
-			pstmt.setString(1, address1);
-			pstmt.setInt(2, partyContact.getRoleType());
-			pstmt.setLong(3, partyContact.getListId());
-			pstmt.executeUpdate();
-			pstmt.close();
-
+				if (StringUtils.isBlank(address1)) {
+					address1 = getAddress1FromPartyContact(conn, partyContact.getAddressId());
+				} else {
+					// delete PartyContactTemp
+					deletePartyContactTemp(conn, partyContact.getAddressId());
+				}
+				sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+						+ " values (?,?,?,?,?,?,?,?,?)";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setInt(1, partyContact.getRoleType());
+				pstmt.setLong(2, partyContact.getListId());
+				pstmt.setLong(3, partyContact.getPolicyId());
+				pstmt.setString(4, partyContact.getName());
+				pstmt.setString(5, partyContact.getCertiCode());
+				pstmt.setString(6, partyContact.getMobileTel());
+				pstmt.setString(7, partyContact.getEmail());
+				pstmt.setLong(8, partyContact.getAddressId());
+				pstmt.setString(9, address1);
+				
+				pstmt.executeUpdate();
+				pstmt.close();
+			}
+			
 		} else {
 			// record exists, error
 			String error = String.format("table=%s record already exists, role_type=%d, list_id=%d", config.sinkTablePartyContact, partyContact.getRoleType(), partyContact.getListId());
@@ -270,9 +276,10 @@ public class ConsumerLoop implements Runnable {
 
 	private void insertAddress(Connection conn, Address address) throws Exception {
 
-		String sql = "select ROLE_TYPE,LIST_ID from " + config.sinkTablePartyContact + " where address_id = ?";
+		String sql = null;
 		PreparedStatement pstmt = null;
 		try {
+			sql = "select ROLE_TYPE,LIST_ID from " + config.sinkTablePartyContact + " where address_id = ?";
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setLong(1, address.getAddressId());
 			ResultSet resultSet = pstmt.executeQuery();
@@ -378,7 +385,7 @@ public class ConsumerLoop implements Runnable {
 	private void deletePartyContactTemp(Connection conn, Long addressId) throws SQLException {
 		PreparedStatement pstmt = null;
 		try {
-			String sql = "delete " + config.sinkTablePartyContactTemp + " where address_id = " + addressId;
+			String sql = "delete from " + config.sinkTablePartyContactTemp + " where address_id = " + addressId;
 			pstmt = conn.prepareStatement(sql);
 			pstmt.executeUpdate();
 
@@ -414,7 +421,7 @@ public class ConsumerLoop implements Runnable {
 				newpartyContact.setEmail(null); // 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 			}
 
-			updatePartyContact(conn, newpartyContact, newpartyContact);
+			updatePartyContact(conn, oldpartyContact, newpartyContact);
 
 		} else if (config.sourceTableAddress.equals(fullTableName)) {
 			Address oldAddress = objectMapper.readValue(before, Address.class);
@@ -459,39 +466,41 @@ public class ConsumerLoop implements Runnable {
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
 		try {
-			// check if address id is changed
-			if (oldPartyContact.getAddressId().longValue() == newPartyContact.getAddressId().longValue()) {
-				// address id has not changed
-
-				Long listId = null;
-				// check if list_id is null or not
-				if (oldPartyContact.getListId() == null) {
-					sql = "select list_id from " + config.sinkTablePartyContact
-							+ " where POLICY_ID=? and NAME=? and CERTI_CODE=? ";
-					pstmt = conn.prepareStatement(sql);
-					pstmt.setLong(1, oldPartyContact.getPolicyId());
-					pstmt.setString(2, oldPartyContact.getName());
-					pstmt.setString(3, oldPartyContact.getCertiCode());
-					
-					rs = pstmt.executeQuery();
-					
-					int i = 0;
-					while (rs.next()) {
-						i++;
-						listId = rs.getLong("LIST_ID");
-					}
-					if (i == 0) {
-						// no record, error
-						throw new Exception("No record in PartyContact, listId=" +  ToStringBuilder.reflectionToString(oldPartyContact));
-					} else if (i > 1) {
-						// multiple rows, error
-						throw new Exception("multiple rows in PartyContact, listId=" +  ToStringBuilder.reflectionToString(oldPartyContact));
-					}
-					rs.close();
-					pstmt.close();
+			// 0: no party address update, 1: add party address, 2: remove party address, 3: update party address
+			int addressAction = 0;  
+			if (oldPartyContact.getAddressId() == null && newPartyContact.getAddressId() == null) {
+				addressAction = 0;
+			} else if (oldPartyContact.getAddressId() == null && newPartyContact.getAddressId() != null) {
+				addressAction  = 1;
+			} else if (oldPartyContact.getAddressId() != null && newPartyContact.getAddressId() == null) {
+				addressAction  = 2;
+			} else if (oldPartyContact.getAddressId() != null && newPartyContact.getAddressId() != null) {
+				if (oldPartyContact.getAddressId().intValue() == newPartyContact.getAddressId().intValue()) {
+					addressAction = 0;
 				} else {
-					listId = oldPartyContact.getListId();
+					addressAction = 3;
 				}
+			} else {
+				throw new Exception("Error: impossibly goes here!!!");
+			}
+			logger.info(">>> addressAction={}, old addressid={}, new adressid={}", addressAction, oldPartyContact.getAddressId(), newPartyContact.getAddressId());
+			logger.info(">>> oldPartyContact.ListId={}, newPartyContact.ListId={}", oldPartyContact.getListId(), newPartyContact.getListId());
+			Long listId = null;
+			if (oldPartyContact.getListId() == null && newPartyContact.getListId() == null) {
+				throw new Exception("Error: old ListId=null, new ListId=null");
+			} else if (oldPartyContact.getListId() == null && newPartyContact.getListId() != null) {
+				throw new Exception("Error: old ListId=null, new ListId=" + newPartyContact.getListId());
+			} else if (oldPartyContact.getListId() != null && newPartyContact.getListId() == null) {
+				throw new Exception("Error: old ListId=" + oldPartyContact.getListId() + ", new ListId=null");
+			} else if (oldPartyContact.getListId() != null && newPartyContact.getListId() != null) {
+				if (oldPartyContact.getListId().longValue() != newPartyContact.getListId().longValue()) {
+					throw new Exception("Error: Not equal, old ListId=" + oldPartyContact.getListId() + ", new ListId=" + newPartyContact.getListId());
+				}
+				listId = oldPartyContact.getListId();
+			}
+			// 0: no party address update, 1: add party address, 2: remove party address, 3: update party address
+			if (addressAction == 0) {
+				// no party address update
 				sql = "update " + config.sinkTablePartyContact 
 						+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?" 
 						+ " where ROLE_TYPE = ? and LIST_ID = ?";
@@ -506,52 +515,94 @@ public class ConsumerLoop implements Runnable {
 
 				pstmt.executeUpdate();
 				pstmt.close();
-			} else {
-				// address id has changed
-				String address = getAddress1FromPartyContact(conn, newPartyContact.getAddressId());
-				if (StringUtils.isBlank(address)) {
-					String addressTemp = getAddress1FromPartyContactTemp(conn, newPartyContact.getAddressId());
+			} else if (addressAction == 1 || addressAction == 3 ) {
+				// add party address with address_id
+				// 1. get address 1 
+				//   check if existing address exists
+				//   1.1 check party_contact_temp with address_id
+				//      1.1.1 if exists, 
+				//            { a. get address_1;
+				//              b. delete from party_contact_temp } 
+				//      1.1.2 if does not exist,
+				//            1.1.2.1 check party_contact with address_id
+				//                    1.1.2.1.1 if exists, 
+				//                      			{ a. get address_1;}
+				//                    1.1.2.1.2 if does not exist,
+				//              					{ a. address_1 = null; }
+				//  2. update party_contact with address_1          
 
-					if (StringUtils.isNotBlank(addressTemp)) {
-						deletePartyContactTemp(conn, newPartyContact.getAddressId());
+				String address1 = null;
 
-						sql = "update " + config.sinkTablePartyContact 
-								+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=?" 
-								+ " where ROLE_TYPE = ? and LIST_ID = ?";
-						pstmt = conn.prepareStatement(sql);
-						pstmt.setLong(1, newPartyContact.getPolicyId());
-						pstmt.setString(2, newPartyContact.getName());
-						pstmt.setString(3, newPartyContact.getCertiCode());
-						pstmt.setString(4, newPartyContact.getMobileTel());
-						pstmt.setString(5, newPartyContact.getEmail());
-						pstmt.setLong(6, newPartyContact.getAddressId());
-						pstmt.setString(7, addressTemp);
-						pstmt.setInt(8, newPartyContact.getRoleType());
-						pstmt.setLong(9, newPartyContact.getListId());
+				sql = "select address_1 from " + config.sinkTablePartyContactTemp 
+						+ " where address_id = ?";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setLong(1, newPartyContact.getAddressId());
+				rs = pstmt.executeQuery();
 
-						pstmt.executeUpdate();
-						
-						pstmt.close();
-					}
+				while (rs.next()) {
+					address1 = rs.getString("ADDRESS_1");
+				}
+				rs.close();
+				pstmt.close();
+				
+				logger.info(">>> PartyContactTemp address1 = {}", address1);
+				
+				if (address1 != null) {
+					// delete from party_contact_temp 
+					deletePartyContactTemp(conn, newPartyContact.getAddressId());
+
+					logger.info(">>> delete PartyContactTemp sql={}, address_id= {}", sql, newPartyContact.getAddressId());
 				} else {
-					sql = "update " + config.sinkTablePartyContact 
-							+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=?" 
-							+ " where ROLE_TYPE = ? and LIST_ID = ?";
+					// check party_contact with address_id
+					sql = "select address_1 from " + config.sinkTablePartyContact
+							+ " where address_id = ?";
 					pstmt = conn.prepareStatement(sql);
-					pstmt.setLong(1, newPartyContact.getPolicyId());
-					pstmt.setString(2, newPartyContact.getName());
-					pstmt.setString(3, newPartyContact.getCertiCode());
-					pstmt.setString(4, newPartyContact.getMobileTel());
-					pstmt.setString(5, newPartyContact.getEmail());
-					pstmt.setLong(6, newPartyContact.getAddressId());
-					pstmt.setString(7, address);
-					pstmt.setInt(8, newPartyContact.getRoleType());
-					pstmt.setLong(9, newPartyContact.getListId());
+					pstmt.setLong(1, newPartyContact.getAddressId());
+					rs = pstmt.executeQuery();
 
-					pstmt.executeUpdate();
+					while (rs.next()) {
+						address1 = rs.getString("ADDRESS_1");
+					}
+					rs.close();
 					pstmt.close();
 				}
-			}
+				//update party_contact with address_1 
+				sql = "update " + config.sinkTablePartyContact 
+						+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=? " 
+						+ " where ROLE_TYPE = ? and LIST_ID = ?";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setLong(1, newPartyContact.getPolicyId());
+				pstmt.setString(2, newPartyContact.getName());
+				pstmt.setString(3, newPartyContact.getCertiCode());
+				pstmt.setString(4, newPartyContact.getMobileTel());
+				pstmt.setString(5, newPartyContact.getEmail());
+				pstmt.setLong(6, newPartyContact.getAddressId());
+				pstmt.setString(7, address1);
+				pstmt.setInt(8, oldPartyContact.getRoleType());
+				pstmt.setLong(9, listId);
+
+				pstmt.executeUpdate();
+				pstmt.close();
+			} else if (addressAction == 2) {
+				// remove party address 
+				sql = "update " + config.sinkTablePartyContact 
+						+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=? " 
+						+ " where ROLE_TYPE = ? and LIST_ID = ?";
+				pstmt = conn.prepareStatement(sql);
+				pstmt.setLong(1, newPartyContact.getPolicyId());
+				pstmt.setString(2, newPartyContact.getName());
+				pstmt.setString(3, newPartyContact.getCertiCode());
+				pstmt.setString(4, newPartyContact.getMobileTel());
+				pstmt.setString(5, newPartyContact.getEmail());
+				pstmt.setLong(6, newPartyContact.getAddressId());
+				pstmt.setString(7, null);
+				pstmt.setInt(8, oldPartyContact.getRoleType());
+				pstmt.setLong(9, listId);
+
+				pstmt.executeUpdate();
+				pstmt.close();
+			} 
+
 		} finally {
 			if (pstmt != null) pstmt.close();
 		}
