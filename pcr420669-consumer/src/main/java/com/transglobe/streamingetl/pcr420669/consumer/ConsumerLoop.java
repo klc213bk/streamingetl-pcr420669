@@ -111,7 +111,9 @@ public class ConsumerLoop implements Runnable {
 
 							String fullTableName = payload.get("SEG_OWNER").asText() + "." + payload.get("TABLE_NAME").asText();
 						//	logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
-							logger.info("   >>>payload={}", payload.toPrettyString());
+							if (!"T_STREAMING_ETL_HEALTH_CDC".equals(payload.get("TABLE_NAME").asText())) {
+								logger.info("   >>>payload={}", payload.toPrettyString());
+							}
 							if (StringUtils.equals(streamingEtlHealthCdcTableName, payload.get("TABLE_NAME").asText())) {
 								doHealth(conn, objectMapper, payload);
 							} else if ("INSERT".equals(operation)) {

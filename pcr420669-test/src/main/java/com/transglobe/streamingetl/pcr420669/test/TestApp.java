@@ -71,10 +71,10 @@ public class TestApp {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
 
 			app = new TestApp(configFile);
-//
-//			app.testSamples();
-//
-//			app.testRandomInsertSamples(100);
+
+			app.testSamples();
+
+			app.testRandomInsertSamples(100);
 //			
 //			app.testRandomUpdateSamples(50);
 			
@@ -114,23 +114,23 @@ public class TestApp {
 			sourceConn.setAutoCommit(false);
 			sinkConn.setAutoCommit(false);
 
-			int total = 0;
-			for (int i = 0; i < 3; i++) {
-				if (i == 0) {
-					sql = "select count(*) as COUNT from " + POLICY_HOLDER_SRC;
-				} else if (i  == 1) {
-					sql = "select count(*) as COUNT from " + INSURED_LIST_SRC;
-				} else {
-					sql = "select count(*) as COUNT from " + CONTRACT_BENE_SRC;
-				}
-				pstmt = sourceConn.prepareStatement(sql);
-				rs = pstmt.executeQuery();
-				while (rs.next()) {
-					total = total + rs.getInt("COUNT");
-				}
-				rs.close();
-				pstmt.close();
-			}
+			int total = 1000;
+//			for (int i = 0; i < 3; i++) {
+//				if (i == 0) {
+//					sql = "select count(*) as COUNT from " + POLICY_HOLDER_SRC + " fetch next 1000 rows only";
+//				} else if (i  == 1) {
+//					sql = "select count(*) as COUNT from " + INSURED_LIST_SRC + " fetch next 1000 rows only";
+//				} else {
+//					sql = "select count(*) as COUNT from " + CONTRACT_BENE_SRC + " fetch next 1000 rows only";
+//				}
+//				pstmt = sourceConn.prepareStatement(sql);
+//				rs = pstmt.executeQuery();
+//				while (rs.next()) {
+//					total = total + rs.getInt("COUNT");
+//				}
+//				rs.close();
+//				pstmt.close();
+//			}
 			logger.info(">>> total={}", total);
 
 			int sampleSize = (inputSampleSize == null)? total : inputSampleSize;
@@ -148,11 +148,7 @@ public class TestApp {
 			}
 
 			// select list_ids
-			sql = "select 1 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + POLICY_HOLDER_SRC + " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
-					"union\n" + 
-					"select 2 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + INSURED_LIST_SRC + " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id \n" + 
-					"union\n" + 
-					"select 3 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + CONTRACT_BENE_SRC + " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id" ; 
+			sql = "select 1 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + POLICY_HOLDER_SRC + " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id fetch next 1000 rows only " ; 
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery();
 
@@ -775,7 +771,8 @@ public class TestApp {
 				throw new Exception(">>>>> error roleType=" + roleType);
 			}
 
-			sql = "select list_id from " + initSrcTable;
+			sql = "select list_id from " + initSrcTable
+					+ " fetch next 10000 rows only";
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery(sql);
 			List<Long> listIdList = new ArrayList<>();
@@ -1016,12 +1013,15 @@ public class TestApp {
 			//			String initSrcTable = ADDRESS_SRC;
 			//			String srcTable = config.sourceTableAddress;
 
-			sql = "select address_id from " + ADDRESS_SRC;
+			sql = "select address_id from " + POLICY_HOLDER_SRC
+					+ " fetch next 10000 rows only";
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery(sql);
 			List<Long> addressIdList = new ArrayList<>();
 			while (rs.next()) {
-				addressIdList.add(rs.getLong("ADDRESS_ID"));
+				if (rs.getLong("ADDRESS_ID") != 0) {
+					addressIdList.add(rs.getLong("ADDRESS_ID"));
+				}
 			}
 
 			Random random = new Random(System.currentTimeMillis());
@@ -1347,7 +1347,7 @@ public class TestApp {
 			if (addressIdInTemp == null) {
 				throw new Exception("No addressIdInTemp found");
 			}
-			logger.info(">>> selected addressIdInTemp={}, address1", addressIdInTemp, address1);
+			logger.info(">>> selected addressIdInTemp={}, address1={}", addressIdInTemp, address1);
 
 			// make sure no part exists in ignite
 			sql = "select * from " + config.sinkTablePartyContact + " where address_id = ?";
@@ -1542,7 +1542,7 @@ public class TestApp {
 
 			logger.info("partyContact2={}", ToStringBuilder.reflectionToString(partyContact2));
 			logger.info("partyContact3={}", ToStringBuilder.reflectionToString(partyContact3));
-			logger.info(">>>>> START -> testInsert1PartyMatchAddressInTemp     [  OK  ]");
+			logger.info(">>>>> END -> testInsert1PartyMatchAddressInTemp     [  OK  ]");
 
 		} catch (Exception e) {
 			throw e;
