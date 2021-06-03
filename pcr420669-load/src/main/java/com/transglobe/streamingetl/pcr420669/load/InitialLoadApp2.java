@@ -155,7 +155,7 @@ public class InitialLoadApp2 {
 			System.exit(0);
 
 		} catch (Exception e) {
-			e.printStackTrace();
+			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 			System.exit(1);
 		}
 
@@ -304,18 +304,23 @@ public class InitialLoadApp2 {
 					table = config.sourceTableContractBene;
 					roleType = 3;
 				}
-				sql = "select max(list_id) as MAX_LIST_ID from " + table;
+			//	sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " + table;
+				
+				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " 
+				+ table + " where list_id >= 31000000";
 				pstmt = sourceConn.prepareStatement(sql);
 				rs = pstmt.executeQuery();
 				long maxListId = 0;
+				long minListId = 0;
 				while (rs.next()) {
+					minListId = rs.getLong("MIN_LIST_ID");
 					maxListId = rs.getLong("MAX_LIST_ID");
 				}
 				rs.close();
 				pstmt.close();
 
 				long stepSize = 10000;
-				long startIndex = 0;
+				long startIndex = minListId;
 
 				int totalPartyCount = 0;
 				List<LoadBean> loadBeanList = new ArrayList<>();
@@ -335,7 +340,7 @@ public class InitialLoadApp2 {
 					startIndex = endIndex;
 				}
 
-				logger.info("table={}, maxlistid={}, size={}, total partyCount={}", table, maxListId, loadBeanList.size(), totalPartyCount);
+				logger.info("table={}, maxlistid={}, minListId={}, size={}, total partyCount={}", table, maxListId, minListId, loadBeanList.size(), totalPartyCount);
 
 				List<CompletableFuture<Map<String, String>>> futures = 
 						loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
@@ -417,6 +422,10 @@ public class InitialLoadApp2 {
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + config.sinkTablePartyContact + " (EMAIL)  INLINE_SIZE 20 PARALLEL 8");
 		logger.info(">>>>> create index email span={}", (System.currentTimeMillis() - t0));
+
+		t0 = System.currentTimeMillis();
+		createIndex("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + config.sinkTablePartyContact + " (ADDRESS_1)  INLINE_SIZE 60 PARALLEL 8");
+		logger.info(">>>>> create index address span={}", (System.currentTimeMillis() - t0));
 
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + config.sinkTablePartyContactTemp + " (ADDRESS_ID) PARALLEL 8");
