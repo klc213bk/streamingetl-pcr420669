@@ -52,7 +52,7 @@ public class TestApp {
 	private static String INSURED_LIST_SRC = "T_INSURED_LIST";
 	private static String CONTRACT_BENE_SRC = "T_CONTRACT_BENE";
 
-
+	private static Long TEST_MAX_LIST_ID = 31000000L;
 
 
 	Config config;
@@ -74,13 +74,13 @@ public class TestApp {
 
 			app.testSamples();
 
-			app.testRandomInsertSamples(100);
+//			app.testRandomInsertSamples(100);
 //			
 //			app.testRandomUpdateSamples(50);
 			
-			app.testNullAddress1();
+//			app.testNullAddress1();
 			
-			app.testNullAddress2();
+//			app.testNullAddress2();
 			
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -148,7 +148,10 @@ public class TestApp {
 			}
 
 			// select list_ids
-			sql = "select 1 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + POLICY_HOLDER_SRC + " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id fetch next 1000 rows only " ; 
+			sql = "select 1 AS ROLE_TYPE, list_id, a.address_id, b.address_1 from " + POLICY_HOLDER_SRC 
+					+ " a left join " + ADDRESS_SRC + " b on a.address_id = b.address_id "
+					+ " where list_id < " + TEST_MAX_LIST_ID
+					+ " fetch next 1000 rows only " ; 
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery();
 
@@ -645,7 +648,7 @@ public class TestApp {
 
 		try {
 
-			testInit();
+		//	testInit();
 
 			testInsert1NewParty(POLICY_HOLDER_ROLE_TYPE);
 
@@ -772,6 +775,7 @@ public class TestApp {
 			}
 
 			sql = "select list_id from " + initSrcTable
+					+ " where list_id < " + TEST_MAX_LIST_ID
 					+ " fetch next 10000 rows only";
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery(sql);
@@ -875,26 +879,26 @@ public class TestApp {
 
 
 			// check spring boot result for email
-			List<PartyContact> contactLista = queryPartyContact("email", partyContact.getEmail());
-			int retCounta = contactLista.size();
-			if ( StringUtils.isBlank(partyContact.getEmail())) {
-				if ( retCounta != 0) {
-					throw new Exception(">>>>> testInsert1Party size for email check error, return from springboot wrong data row count:" + retCounta);
-				}
-			} else {
-				boolean result = false;
-				for (int k =0; k < retCounta; k++) {
-					PartyContact partyContact3a = contactLista.get(k);
-					if (partyContact.getListId().equals(partyContact3a.getListId())) {
-						result = true;
-						break;
-					}
-
-				}
-				if (!result) {
-					throw new Exception(">>>>> email found no match");
-				}
-			}
+//			List<PartyContact> contactLista = queryPartyContact("email", partyContact.getEmail());
+//			int retCounta = contactLista.size();
+//			if ( StringUtils.isBlank(partyContact.getEmail())) {
+//				if ( retCounta != 0) {
+//					throw new Exception(">>>>> testInsert1Party size for email check error, return from springboot wrong data row count:" + retCounta);
+//				}
+//			} else {
+//				boolean result = false;
+//				for (int k =0; k < retCounta; k++) {
+//					PartyContact partyContact3a = contactLista.get(k);
+//					if (partyContact.getListId().equals(partyContact3a.getListId())) {
+//						result = true;
+//						break;
+//					}
+//
+//				}
+//				if (!result) {
+//					throw new Exception(">>>>> email found no match");
+//				}
+//			}
 
 
 			// check spring boot result for mobileTel
@@ -961,12 +965,22 @@ public class TestApp {
 		}
 	}
 
+	/** 
+	 * 	sample url
+	 * http://localhost:8080/partycontact/v1.0/search?email=xxx@xxx.com
+	 * http://localhost:8080/partycontact/v1.0/search?email=xxxx
+	 * http://localhost:8080/partycontact/v1.0/search?address1=xxxx
+	 * @param searchBy
+	 * @param searchContent
+	 * @return
+	 * @throws Exception
+	 */
 	private List<PartyContact> queryPartyContact(String searchBy, String searchContent) throws Exception {
 		ObjectMapper mapper = new ObjectMapper();
-
 		OkHttpClient client = new OkHttpClient();
 
-		HttpUrl.Builder urlBuilder = HttpUrl.parse(config.webBaseurl + "/search").newBuilder();
+		String webBaseurl = "http://localhost:8080/partycontact/v1.0/search"; // modify this url
+		HttpUrl.Builder urlBuilder = HttpUrl.parse(webBaseurl).newBuilder();
 		urlBuilder.addQueryParameter(searchBy, searchContent);
 
 		String url = urlBuilder.build().toString();
@@ -1014,6 +1028,7 @@ public class TestApp {
 			//			String srcTable = config.sourceTableAddress;
 
 			sql = "select address_id from " + POLICY_HOLDER_SRC
+					+ " where list_id < " + TEST_MAX_LIST_ID
 					+ " fetch next 10000 rows only";
 			pstmt = sourceConn.prepareStatement(sql);
 			rs = pstmt.executeQuery(sql);
@@ -1350,7 +1365,7 @@ public class TestApp {
 			logger.info(">>> selected addressIdInTemp={}, address1={}", addressIdInTemp, address1);
 
 			// make sure no part exists in ignite
-			sql = "select * from " + config.sinkTablePartyContact + " where address_id = ?";
+			sql = "select * from " + config.sinkTablePartyContact + " where address_id = ?" ;
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.setLong(1, addressIdInTemp);
 			rs = pstmt.executeQuery();
@@ -1370,7 +1385,7 @@ public class TestApp {
 
 			// select from 
 			String partyTableSrc = POLICY_HOLDER_SRC;
-			sql = "select * from " + POLICY_HOLDER_SRC + " where address_id = ?";
+			sql = "select * from " + POLICY_HOLDER_SRC + " where address_id = ? and list_id < " + TEST_MAX_LIST_ID;
 			pstmt = sourceConn.prepareStatement(sql);
 			pstmt.setLong(1, addressIdInTemp);
 			rs = pstmt.executeQuery();
