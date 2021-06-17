@@ -239,7 +239,7 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setString(4, partyContact.getName());
 				pstmt.setString(5, partyContact.getCertiCode());
 				pstmt.setString(6, partyContact.getMobileTel());
-				pstmt.setString(7, partyContact.getEmail());
+				pstmt.setString(7, StringUtils.lowerCase(partyContact.getEmail()));
 
 				pstmt.executeUpdate();
 				pstmt.close();
@@ -261,7 +261,7 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setString(4, partyContact.getName());
 				pstmt.setString(5, partyContact.getCertiCode());
 				pstmt.setString(6, partyContact.getMobileTel());
-				pstmt.setString(7, partyContact.getEmail());
+				pstmt.setString(7, StringUtils.lowerCase(partyContact.getEmail()));
 				pstmt.setLong(8, partyContact.getAddressId());
 				pstmt.setString(9, address1);
 				
@@ -511,7 +511,7 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setString(2, newPartyContact.getName());
 				pstmt.setString(3, newPartyContact.getCertiCode());
 				pstmt.setString(4, newPartyContact.getMobileTel());
-				pstmt.setString(5, newPartyContact.getEmail());
+				pstmt.setString(5, StringUtils.lowerCase(newPartyContact.getEmail()));
 				pstmt.setInt(6, oldPartyContact.getRoleType());
 				pstmt.setLong(7, listId);
 
@@ -577,7 +577,7 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setString(2, newPartyContact.getName());
 				pstmt.setString(3, newPartyContact.getCertiCode());
 				pstmt.setString(4, newPartyContact.getMobileTel());
-				pstmt.setString(5, newPartyContact.getEmail());
+				pstmt.setString(5, StringUtils.lowerCase(newPartyContact.getEmail()));
 				pstmt.setLong(6, newPartyContact.getAddressId());
 				pstmt.setString(7, address1);
 				pstmt.setInt(8, oldPartyContact.getRoleType());
@@ -595,7 +595,7 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setString(2, newPartyContact.getName());
 				pstmt.setString(3, newPartyContact.getCertiCode());
 				pstmt.setString(4, newPartyContact.getMobileTel());
-				pstmt.setString(5, newPartyContact.getEmail());
+				pstmt.setString(5, StringUtils.lowerCase(newPartyContact.getEmail()));
 				pstmt.setLong(6, newPartyContact.getAddressId());
 				pstmt.setString(7, null);
 				pstmt.setInt(8, oldPartyContact.getRoleType());

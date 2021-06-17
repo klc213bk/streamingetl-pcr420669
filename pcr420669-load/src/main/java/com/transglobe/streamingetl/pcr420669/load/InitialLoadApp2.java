@@ -224,7 +224,7 @@ public class InitialLoadApp2 {
 				if (email == null) {
 					pstmt.setNull(7, Types.VARCHAR);
 				} else {
-					pstmt.setString(7, email);
+					pstmt.setString(7, email.toLowerCase());
 				}
 
 				pstmt.setLong(8, addressId);
@@ -304,10 +304,10 @@ public class InitialLoadApp2 {
 					table = config.sourceTableContractBene;
 					roleType = 3;
 				}
-			//	sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " + table;
+				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " + table;
 				
-				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " 
-				+ table + " where list_id >= 31000000";
+//				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " 
+//				+ table + " where list_id >= 31000000";
 				pstmt = sourceConn.prepareStatement(sql);
 				rs = pstmt.executeQuery();
 				long maxListId = 0;
