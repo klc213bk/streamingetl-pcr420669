@@ -219,12 +219,12 @@ public class InitialLoadApp2 {
 				if (mobileTel == null) {
 					pstmt.setNull(6, Types.VARCHAR);
 				} else {
-					pstmt.setString(6, mobileTel);
+					pstmt.setString(6, StringUtils.trim(mobileTel));
 				}
 				if (email == null) {
 					pstmt.setNull(7, Types.VARCHAR);
 				} else {
-					pstmt.setString(7, email.toLowerCase());
+					pstmt.setString(7, StringUtils.trim(email.toLowerCase()));
 				}
 
 				pstmt.setLong(8, addressId);
@@ -232,7 +232,7 @@ public class InitialLoadApp2 {
 				if (address1 == null) {
 					pstmt.setNull(9, Types.VARCHAR);
 				} else {
-					pstmt.setString(9, address1);
+					pstmt.setString(9, StringUtils.trim(address1));
 				}
 
 				pstmt.addBatch();
