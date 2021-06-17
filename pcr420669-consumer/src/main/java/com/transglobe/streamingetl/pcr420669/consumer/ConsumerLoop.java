@@ -238,8 +238,8 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setLong(3, partyContact.getPolicyId());
 				pstmt.setString(4, partyContact.getName());
 				pstmt.setString(5, partyContact.getCertiCode());
-				pstmt.setString(6, partyContact.getMobileTel());
-				pstmt.setString(7, StringUtils.lowerCase(partyContact.getEmail()));
+				pstmt.setString(6, StringUtils.trim(partyContact.getMobileTel()));
+				pstmt.setString(7, StringUtils.trim(StringUtils.lowerCase(partyContact.getEmail())));
 
 				pstmt.executeUpdate();
 				pstmt.close();
@@ -260,8 +260,8 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setLong(3, partyContact.getPolicyId());
 				pstmt.setString(4, partyContact.getName());
 				pstmt.setString(5, partyContact.getCertiCode());
-				pstmt.setString(6, partyContact.getMobileTel());
-				pstmt.setString(7, StringUtils.lowerCase(partyContact.getEmail()));
+				pstmt.setString(6, StringUtils.trim(partyContact.getMobileTel()));
+				pstmt.setString(7, StringUtils.trim(StringUtils.lowerCase(partyContact.getEmail())));
 				pstmt.setLong(8, partyContact.getAddressId());
 				pstmt.setString(9, address1);
 				
@@ -299,7 +299,7 @@ public class ConsumerLoop implements Runnable {
 				sql = "insert into " + config.sinkTablePartyContactTemp + " (ADDRESS_ID,ADDRESS_1)" + " values (?,?)";
 				pstmt = conn.prepareStatement(sql);
 				pstmt.setLong(1, address.getAddressId());
-				pstmt.setString(2, address.getAddress1());
+				pstmt.setString(2, StringUtils.trim(address.getAddress1()));
 				pstmt.executeUpdate();
 				pstmt.close();
 
@@ -307,7 +307,7 @@ public class ConsumerLoop implements Runnable {
 				// update party contact
 				sql = "update "  + config.sinkTablePartyContact + " set address_1 = ? where address_id = ?";
 				pstmt = conn.prepareStatement(sql);
-				pstmt.setString(1, address.getAddress1());
+				pstmt.setString(1, StringUtils.trim(address.getAddress1()));
 				pstmt.setLong(2, address.getAddressId());
 				pstmt.executeUpdate();
 				pstmt.close();
@@ -444,7 +444,7 @@ public class ConsumerLoop implements Runnable {
 			sql = "update " + config.sinkTablePartyContact
 					+ " set ADDRESS_1 = ? where ADDRESS_ID = ?";
 			pstmt = conn.prepareStatement(sql);
-			pstmt.setString(1, newAddress.getAddress1());
+			pstmt.setString(1, StringUtils.trim(newAddress.getAddress1()));
 			pstmt.setLong(2, oldAddress.getAddressId());
 
 			pstmt.executeUpdate();
@@ -454,7 +454,7 @@ public class ConsumerLoop implements Runnable {
 			sql = "update " + config.sinkTablePartyContactTemp
 					+ " set ADDRESS_1 = ? where ADDRESS_ID = ?";
 			pstmt = conn.prepareStatement(sql);
-			pstmt.setString(1, newAddress.getAddress1());
+			pstmt.setString(1, StringUtils.trim(newAddress.getAddress1()));
 			pstmt.setLong(2, oldAddress.getAddressId());
 
 			pstmt.executeUpdate();
@@ -510,8 +510,8 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setLong(1, newPartyContact.getPolicyId());
 				pstmt.setString(2, newPartyContact.getName());
 				pstmt.setString(3, newPartyContact.getCertiCode());
-				pstmt.setString(4, newPartyContact.getMobileTel());
-				pstmt.setString(5, StringUtils.lowerCase(newPartyContact.getEmail()));
+				pstmt.setString(4, StringUtils.trim(newPartyContact.getMobileTel()));
+				pstmt.setString(5, StringUtils.trim(StringUtils.lowerCase(newPartyContact.getEmail())));
 				pstmt.setInt(6, oldPartyContact.getRoleType());
 				pstmt.setLong(7, listId);
 
@@ -576,10 +576,10 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setLong(1, newPartyContact.getPolicyId());
 				pstmt.setString(2, newPartyContact.getName());
 				pstmt.setString(3, newPartyContact.getCertiCode());
-				pstmt.setString(4, newPartyContact.getMobileTel());
-				pstmt.setString(5, StringUtils.lowerCase(newPartyContact.getEmail()));
+				pstmt.setString(4, StringUtils.trim(newPartyContact.getMobileTel()));
+				pstmt.setString(5, StringUtils.trim(StringUtils.lowerCase(newPartyContact.getEmail())));
 				pstmt.setLong(6, newPartyContact.getAddressId());
-				pstmt.setString(7, address1);
+				pstmt.setString(7, StringUtils.trim(address1));
 				pstmt.setInt(8, oldPartyContact.getRoleType());
 				pstmt.setLong(9, listId);
 
@@ -594,8 +594,8 @@ public class ConsumerLoop implements Runnable {
 				pstmt.setLong(1, newPartyContact.getPolicyId());
 				pstmt.setString(2, newPartyContact.getName());
 				pstmt.setString(3, newPartyContact.getCertiCode());
-				pstmt.setString(4, newPartyContact.getMobileTel());
-				pstmt.setString(5, StringUtils.lowerCase(newPartyContact.getEmail()));
+				pstmt.setString(4, StringUtils.trim(newPartyContact.getMobileTel()));
+				pstmt.setString(5, StringUtils.trim(StringUtils.lowerCase(newPartyContact.getEmail())));
 				pstmt.setLong(6, newPartyContact.getAddressId());
 				pstmt.setString(7, null);
 				pstmt.setInt(8, oldPartyContact.getRoleType());
