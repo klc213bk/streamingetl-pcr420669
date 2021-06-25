@@ -22,7 +22,8 @@ public class ConsumerApp {
 	
 	private static final int NUM_CONSUMERS = 1;
 
-	private static BasicDataSource connPool;
+	private static BasicDataSource sinkConnPool;
+	private static BasicDataSource sourceConnPool;
 	
 	public static void main(String[] args) { 
 		String profileActive = System.getProperty("profile.active", "");
@@ -45,19 +46,25 @@ public class ConsumerApp {
 //				"ebao.cdc.t_streaming_etl_health_cdc.0"
 //				);
 		
+		sourceConnPool = new BasicDataSource();
+		sourceConnPool.setUrl(config.sourceDbUrl);
+		sourceConnPool.setUsername(config.sourceDbUsername);
+		sourceConnPool.setPassword(config.sourceDbPassword);
+		sourceConnPool.setDriverClassName(config.sourceDbDriver);
+		sourceConnPool.setMaxTotal(NUM_CONSUMERS);
 		
-		connPool = new BasicDataSource();
-		connPool.setUrl(config.sinkDbUrl);
-		connPool.setUsername(null);
-		connPool.setPassword(null);
-		connPool.setDriverClassName(config.sinkDbDriver);
-		connPool.setMaxTotal(NUM_CONSUMERS);
+		sinkConnPool = new BasicDataSource();
+		sinkConnPool.setUrl(config.sinkDbUrl);
+		sinkConnPool.setUsername(null);
+		sinkConnPool.setPassword(null);
+		sinkConnPool.setDriverClassName(config.sinkDbDriver);
+		sinkConnPool.setMaxTotal(NUM_CONSUMERS);
 		
 		ExecutorService executor = Executors.newFixedThreadPool(NUM_CONSUMERS);
 
-		final List<ConsumerLoop> consumers = new ArrayList<>();
+		final List<ConsumerLoop2> consumers = new ArrayList<>();
 		for (int i = 0; i < NUM_CONSUMERS; i++) {
-			ConsumerLoop consumer = new ConsumerLoop(i, groupId, config, connPool);
+			ConsumerLoop2 consumer = new ConsumerLoop2(i, groupId, config, sourceConnPool, sinkConnPool);
 			consumers.add(consumer);
 			executor.submit(consumer);
 		}
@@ -65,7 +72,7 @@ public class ConsumerApp {
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 			@Override
 			public void run() {
-				for (ConsumerLoop consumer : consumers) {
+				for (ConsumerLoop2 consumer : consumers) {
 					consumer.shutdown();
 				} 
 				executor.shutdown();
