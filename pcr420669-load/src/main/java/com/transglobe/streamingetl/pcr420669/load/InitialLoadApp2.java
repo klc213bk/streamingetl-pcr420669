@@ -69,15 +69,14 @@ public class InitialLoadApp2 {
 
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
-	private static final String CREATE_TEMP_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT_TEMP.sql";
 	private static final String CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME = "createtable-T_STREAMING_ETL_HEALTH.sql";
 	
-	private static final String SOURCE_TABLE_T_POLICY_HOLDER = "T_POLICY_HOLDER";
-	private static final String SOURCE_TABLE_T_INSURED_LIST = "T_INSURED_LIST";
-	private static final String SOURCE_TABLE_T_CONTRACT_BENE = "T_CONTRACT_BENE";
-	private static final String SOURCE_TABLE_T_POLICY_HOLDER_LOG = "T_POLICY_HOLDER_LOG";
-	private static final String SOURCE_TABLE_T_INSURED_LIST_LOG = "T_INSURED_LIST_LOG";
-	private static final String SOURCE_TABLE_T_CONTRACT_BENE_LOG = "T_CONTRACT_BENE_LOG";
+	private static final String SOURCE_TABLE_T_POLICY_HOLDER = "TEST_T_POLICY_HOLDER";
+	private static final String SOURCE_TABLE_T_INSURED_LIST = "TEST_T_INSURED_LIST";
+	private static final String SOURCE_TABLE_T_CONTRACT_BENE = "TEST_T_CONTRACT_BENE";
+	private static final String SOURCE_TABLE_T_POLICY_HOLDER_LOG = "TEST_T_POLICY_HOLDER_LOG";
+	private static final String SOURCE_TABLE_T_INSURED_LIST_LOG = "TEST_T_INSURED_LIST_LOG";
+	private static final String SOURCE_TABLE_T_CONTRACT_BENE_LOG = "TEST_T_CONTRACT_BENE_LOG";
 	
 	private static final String SOURCE_TABLE_T_CONTRACT_MASTER = "T_CONTRACT_MASTER";
 	private static final String SOURCE_TABLE_T_ADDRESS = "T_ADDRESS";
@@ -146,7 +145,6 @@ public class InitialLoadApp2 {
 		try {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
 			String createTableFile = CREATE_TABLE_FILE_NAME;
-			String createTempTableFile = CREATE_TEMP_TABLE_FILE_NAME;
 			String createStreamingEtlHealthTableFile = CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME;
 
 			InitialLoadApp2 app = new InitialLoadApp2(configFile);
