@@ -43,13 +43,14 @@ public class ConsumerLoop2 implements Runnable {
 	private BasicDataSource sourceConnPool;
 	private BasicDataSource sinkConnPool;
 
-	private String streamingEtlHealthCdcTableName;
 	private String policyHolderTableName;
 	private String insuredListTableName;
 	private String contractBeneTableName;
 	private String policyHolderTableNameLog;
 	private String insuredListTableNameLog;
 	private String contractBeneTableNameLog;
+
+	private String streamingEtlHealthCdcTableName;
 	private String addressTableName;
 
 	private String sourceSyncTableContractMaster;
@@ -134,9 +135,7 @@ public class ConsumerLoop2 implements Runnable {
 
 							String tableName = payload.get("TABLE_NAME").asText();
 							//	logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
-							if (StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
-								doHealth(sinkConn, objectMapper, payload);
-							} else {
+							if (!StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
 								logger.info("   >>>payload={}", payload.toPrettyString());
 							}
 
@@ -146,26 +145,42 @@ public class ConsumerLoop2 implements Runnable {
 									|| StringUtils.equals(contractBeneTableName, tableName)) {
 
 								String payLoadData = payload.get("data").toString();
+								String beforePayLoadData = payload.get("before").toString();
 
-								PartyContact partyContact = objectMapper.readValue(payLoadData, PartyContact.class);
+								PartyContact partyContact = objectMapper.readValue(payLoadData, PartyContact.class);;
+								PartyContact beforePartyContact = objectMapper.readValue(beforePayLoadData, PartyContact.class);;
 
-								partyContact.setMobileTel(StringUtils.trim(partyContact.getMobileTel()));
-								partyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(partyContact.getEmail())));
-								if (config.sourceTablePolicyHolder.equals(tableName)) {
-									partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
-								} else if (config.sourceTableInsuredList.equals(tableName)) {
-									partyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
-								} else if (config.sourceTableContractBene.equals(tableName)) {
-									partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
-									partyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
-								} 
-								
+								if (partyContact != null) { 
+									partyContact.setMobileTel(StringUtils.trim(partyContact.getMobileTel()));
+									partyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(partyContact.getEmail())));
+									if (config.sourceTablePolicyHolder.equals(tableName)) {
+										partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
+									} else if (config.sourceTableInsuredList.equals(tableName)) {
+										partyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
+									} else if (config.sourceTableContractBene.equals(tableName)) {
+										partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
+										partyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
+									} 
+								}
+								if (beforePartyContact != null) { 
+									beforePartyContact.setMobileTel(StringUtils.trim(beforePartyContact.getMobileTel()));
+									beforePartyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(beforePartyContact.getEmail())));
+									if (config.sourceTablePolicyHolder.equals(tableName)) {
+										beforePartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
+									} else if (config.sourceTableInsuredList.equals(tableName)) {
+										beforePartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
+									} else if (config.sourceTableContractBene.equals(tableName)) {
+										beforePartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
+										beforePartyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
+									} 
+								}
 								logger.info("   >>>operation={}", operation);
-								logger.info("   >>>partyContact={}", partyContact);
+								logger.info("   >>>partyContact={}, beforePartyContact={}", partyContact,beforePartyContact);
 
 								// check sourceSyncTableContractMaster
 								sourceConn = sourceConnPool.getConnection();
-								int liabilityState = getLiabilityState(sourceConn, partyContact.getPolicyId());
+								int liabilityState = (partyContact != null)? getLiabilityState(sourceConn, partyContact.getPolicyId())
+										: getLiabilityState(sourceConn, beforePartyContact.getPolicyId());
 								logger.info("   >>>liabilityState={}", liabilityState);
 
 								if (liabilityState == 0) {
@@ -173,17 +188,13 @@ public class ConsumerLoop2 implements Runnable {
 									if ("INSERT".equals(operation)) {
 										insertPartyContact(sinkConn, partyContact);
 									} else if ("UPDATE".equals(operation)) {
-										String beforePayLoadData = payload.get("before").toString();
-										PartyContact beforePartyContact = objectMapper.readValue(beforePayLoadData, PartyContact.class);
-										logger.info("   >>>beforePartyContact={}", beforePartyContact);
-										
 										if (partyContact.equals(beforePartyContact)) {
 											// ignore
 										} else {
 											updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
 										}
 									} else if ("DELETE".equals(operation)) {
-										deletePartyContact(sinkConn, partyContact);
+										deletePartyContact(sinkConn, beforePartyContact);
 									}
 
 								} else {
@@ -199,7 +210,7 @@ public class ConsumerLoop2 implements Runnable {
 
 								PartyContact partyContact = objectMapper.readValue(payLoadData, PartyContact.class);
 								String lastCmtFlg = partyContact.getLastCmtFlg();
-								
+
 								// LAST_CMT_FLG ＝ ʻYʻ 同步(Insert/update)
 								if (StringUtils.equals("Y", lastCmtFlg)) {
 									if ("INSERT".equals(operation)) {
@@ -208,7 +219,7 @@ public class ConsumerLoop2 implements Runnable {
 										String beforePayLoadData = payload.get("before").toString();
 										PartyContact beforePartyContact = objectMapper.readValue(beforePayLoadData, PartyContact.class);
 										logger.info("   >>>Log beforePartyContact={}", beforePartyContact);
-										
+
 										if (partyContact.equals(beforePartyContact)) {
 											// ignore
 										} else {
@@ -220,7 +231,7 @@ public class ConsumerLoop2 implements Runnable {
 								else {
 									Long policyChgId = partyContact.getPolicyChgId();
 									int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
-									
+
 									// delete
 									if (policyChgStatus == 2) {
 										deletePartyContact(sinkConn, partyContact);
@@ -228,8 +239,8 @@ public class ConsumerLoop2 implements Runnable {
 										// ignore
 									}
 								}
-								
-								
+
+
 							} // Address 表
 							else if (StringUtils.equals(addressTableName, tableName)) {
 								String payLoadData = payload.get("data").toString();
@@ -245,10 +256,12 @@ public class ConsumerLoop2 implements Runnable {
 									} else {
 										updateAddress(sinkConn, beforeAddress, address);
 									}	
-									
+
 								} else if ("DELETE".equals(operation)) {
 									deleteAddress(sinkConn, address);
 								}
+							} else if (StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
+								doHealth(sinkConn, objectMapper, payload);
 							} else {
 								throw new Exception(">>> Error: no such table name:" + tableName);
 							}
@@ -454,7 +467,7 @@ public class ConsumerLoop2 implements Runnable {
 			//Long partyAddressId = null;
 			int count = 0;
 			while (rs.next()) {
-			//	partyAddressId = rs.getLong("ADDRESS_ID");
+				//	partyAddressId = rs.getLong("ADDRESS_ID");
 				count++;
 			}
 			rs.close();
@@ -537,25 +550,25 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
-	private void deletePartyContact(Connection sinkConn, PartyContact partyContact) throws Exception  {
+	private void deletePartyContact(Connection sinkConn, PartyContact beforePartyContact) throws Exception  {
 		PreparedStatement pstmt = null;
 		try {
 			String sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
-					+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
+					+ " where role_type = " + beforePartyContact.getRoleType() + " and list_id = " + beforePartyContact.getListId();
 			int count = getCount(sinkConn, sql);
 			if (count > 0) {
 				sql = "delete from " + config.sinkTablePartyContact + " where role_type = ? and list_id = ?";
 
 				pstmt = sinkConn.prepareStatement(sql);
-				pstmt.setInt(1, partyContact.getRoleType());
-				pstmt.setLong(2, partyContact.getListId());
-				
+				pstmt.setInt(1, beforePartyContact.getRoleType());
+				pstmt.setLong(2, beforePartyContact.getListId());
+
 				pstmt.executeUpdate();
 				pstmt.close();
 
 			} else {
 				// record exists, error
-				String error = String.format("table=%s record does not exist, therefore cannot delete, role_type=%d, list_id=%d", config.sinkTablePartyContact, partyContact.getRoleType(), partyContact.getListId());
+				String error = String.format("table=%s record does not exist, therefore cannot delete, role_type=%d, list_id=%d", config.sinkTablePartyContact, beforePartyContact.getRoleType(), beforePartyContact.getListId());
 				throw new Exception(error);
 			}
 		} catch (Exception e) {
@@ -635,7 +648,7 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
-	
+
 	private void deleteAddress(Connection sinkConn, Address address) throws Exception  {
 
 		PreparedStatement pstmt = null;

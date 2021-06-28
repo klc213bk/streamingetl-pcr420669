@@ -55,6 +55,7 @@ public class Config {
 			config.sourceTablePolicyHolderLog = prop.getProperty("source.table.policy_holder_log");
 			config.sourceTableInsuredListLog = prop.getProperty("source.table.insured_list_log");
 			config.sourceTableContractBeneLog = prop.getProperty("source.table.contract_bene_log");
+			
 			config.sourceTableAddress = prop.getProperty("source.table.address");
 			config.sourceTableStreamingEtlHealthCdc = prop.getProperty("source.table.streaming.etl.health.cdc");
 

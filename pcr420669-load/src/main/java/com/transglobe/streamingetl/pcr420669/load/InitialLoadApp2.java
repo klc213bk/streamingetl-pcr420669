@@ -71,25 +71,25 @@ public class InitialLoadApp2 {
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME = "createtable-T_STREAMING_ETL_HEALTH.sql";
 	
-	private static final String SOURCE_TABLE_T_POLICY_HOLDER = "TEST_T_POLICY_HOLDER";
-	private static final String SOURCE_TABLE_T_INSURED_LIST = "TEST_T_INSURED_LIST";
-	private static final String SOURCE_TABLE_T_CONTRACT_BENE = "TEST_T_CONTRACT_BENE";
-	private static final String SOURCE_TABLE_T_POLICY_HOLDER_LOG = "TEST_T_POLICY_HOLDER_LOG";
-	private static final String SOURCE_TABLE_T_INSURED_LIST_LOG = "TEST_T_INSURED_LIST_LOG";
-	private static final String SOURCE_TABLE_T_CONTRACT_BENE_LOG = "TEST_T_CONTRACT_BENE_LOG";
-	
-	private static final String SOURCE_TABLE_T_CONTRACT_MASTER = "T_CONTRACT_MASTER";
-	private static final String SOURCE_TABLE_T_ADDRESS = "T_ADDRESS";
-			
-	private static final String SINK_TABLE_T_PARTY_CONTACT = "PUBLIC.T_PARTY_CONTACT";
-	private static final String SINK_TABLE_T_STREAMING_ETL_HEALTH = "PUBLIC.T_STREAMING_ETL_HEALTH";		
-	
 	private static final int THREADS = 15;
 
 	//	private static final long SEQ_INTERVAL = 1000000L;
 
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
+	
+	public String sourceTablePolicyHolder;
+	public String sourceTableInsuredList;
+	public String sourceTableContractBene;
+	public String sourceTablePolicyHolderLog;
+	public String sourceTableInsuredListLog;
+	public String sourceTableContractBeneLog;
+
+	public String sourceTableContractMaster;
+	public String sourceTableAddress;
+
+	public String sinkTablePartyContact;
+	public String sinkTableStreamingEtlHealth;
 
 	static class LoadBean {
 		String tableName;
@@ -116,6 +116,18 @@ public class InitialLoadApp2 {
 		sinkConnectionPool.setDriverClassName(config.sinkDbDriver);
 		sinkConnectionPool.setMaxTotal(THREADS);
 
+		sourceTablePolicyHolder = config.sourceTablePolicyHolder;
+		sourceTableInsuredList = config.sourceTableInsuredList;
+		sourceTableContractBene = config.sourceTableContractBene;
+		sourceTablePolicyHolderLog = config.sourceTablePolicyHolderLog;
+		sourceTableInsuredListLog = config.sourceTableInsuredListLog;
+		sourceTableContractBeneLog = config.sourceTableContractBeneLog;
+
+		sourceTableContractMaster = config.sourceTableContractMaster;
+		sourceTableAddress = config.sourceTableAddress;
+
+		sinkTablePartyContact = config.sinkTablePartyContact;
+		sinkTableStreamingEtlHealth = config.sinkTableStreamingEtlHealth;
 	}
 	private void close() {
 		try {
@@ -151,13 +163,13 @@ public class InitialLoadApp2 {
 
 			// create sink table
 			logger.info(">>>  Start: dropTable");
-			app.dropTable(SINK_TABLE_T_PARTY_CONTACT);
-			app.dropTable(SINK_TABLE_T_STREAMING_ETL_HEALTH);
+			app.dropTable(app.sinkTablePartyContact);
+			app.dropTable(app.sinkTableStreamingEtlHealth);
 			logger.info(">>>  End: dropTable DONE!!!");
 
 			logger.info(">>>  Start: createTable");			
-			app.createTable(SINK_TABLE_T_PARTY_CONTACT, createTableFile);
-			app.createTable(SINK_TABLE_T_STREAMING_ETL_HEALTH, createStreamingEtlHealthTableFile);
+			app.createTable(app.sinkTablePartyContact, createTableFile);
+			app.createTable(app.sinkTableStreamingEtlHealth, createStreamingEtlHealthTableFile);
 			
 			logger.info(">>>  End: createTable DONE!!!");
 
@@ -206,7 +218,7 @@ public class InitialLoadApp2 {
 
 			sinkConn.setAutoCommit(false); 
 			PreparedStatement pstmt = sinkConn.prepareStatement(
-					"insert into " + SINK_TABLE_T_PARTY_CONTACT + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
+					"insert into " + this.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
 							+ " values (?,?,?,?,?,?,?,?,?)");
 
 			Long count = 0L;
@@ -298,7 +310,7 @@ public class InitialLoadApp2 {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 			map.put("RETURN_CODE", "-999");
 			map.put("SQL", sql);
-			map.put("SINK_TABLE", SINK_TABLE_T_PARTY_CONTACT);
+			map.put("SINK_TABLE", this.sinkTablePartyContact);
 			map.put("ERROR_MSG", e.getMessage());
 			map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
 		} finally {
@@ -321,13 +333,13 @@ public class InitialLoadApp2 {
 			Integer roleType = null;
 			for (int i = 0; i < 3; i++) {
 				if ( i == 0) {
-					table = SOURCE_TABLE_T_POLICY_HOLDER;
+					table = this.sourceTablePolicyHolder;
 					roleType = 1;
 				} else if ( i == 1) {
-					table = SOURCE_TABLE_T_INSURED_LIST;
+					table = this.sourceTableInsuredList;
 					roleType = 2;
 				} else if ( i == 2) {
-					table = SOURCE_TABLE_T_CONTRACT_BENE;
+					table = this.sourceTableContractBene;
 					roleType = 3;
 				}
 				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " + table;
@@ -373,8 +385,8 @@ public class InitialLoadApp2 {
 								() -> {
 										String sqlStr = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,c.ADDRESS_1 from " 
 											+ t.tableName 
-											+ " a inner join " + SOURCE_TABLE_T_CONTRACT_MASTER + " b ON a.POLICY_ID=b.POLICY_ID "
-											+ " left join " + SOURCE_TABLE_T_ADDRESS + " c on a.address_id = c.address_id "
+											+ " a inner join " + this.sourceTableContractMaster + " b ON a.POLICY_ID=b.POLICY_ID "
+											+ " left join " + this.sourceTableAddress + " c on a.address_id = c.address_id "
 											+ " where b.LIABILITY_STATE = 0 and " + t.startSeq + " <= a.list_id and a.list_id < " + t.endSeq ;
 										return loadPartyContact(sqlStr, t);
 									}
@@ -406,13 +418,13 @@ public class InitialLoadApp2 {
 			Integer roleType = null;
 			for (int i = 0; i < 3; i++) {
 				if ( i == 0) {
-					table = SOURCE_TABLE_T_POLICY_HOLDER_LOG;
+					table = this.sourceTablePolicyHolderLog;
 					roleType = 1;
 				} else if ( i == 1) {
-					table = SOURCE_TABLE_T_INSURED_LIST_LOG;
+					table = this.sourceTableInsuredListLog;
 					roleType = 2;
 				} else if ( i == 2) {
-					table = SOURCE_TABLE_T_CONTRACT_BENE_LOG;
+					table = this.sourceTableContractBeneLog;
 					roleType = 3;
 				}
 				sql = "select min(log_id) as MIN_LOG_ID, max(log_id) as MAX_LOG_ID from " + table;
@@ -458,7 +470,7 @@ public class InitialLoadApp2 {
 								() -> {
 										String sqlStr = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,c.ADDRESS_1 from " 
 											+ t.tableName 
-											+ " a left join " + SOURCE_TABLE_T_ADDRESS + " c on a.address_id = c.address_id "
+											+ " a left join " + this.sourceTableAddress + " c on a.address_id = c.address_id "
 											+ " where a.LAST_CMT_FLG = 'Y' and " + t.startSeq + " <= a.log_id and a.log_id < " + t.endSeq ;
 										return loadPartyContact(sqlStr, t);
 									}
@@ -535,19 +547,19 @@ public class InitialLoadApp2 {
 	private void runCreateIndexes() {
 
 		long t0 = System.currentTimeMillis();
-		createIndex("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + SINK_TABLE_T_PARTY_CONTACT + " (MOBILE_TEL) INLINE_SIZE 10 PARALLEL 8");
+		createIndex("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + this.sinkTablePartyContact + " (MOBILE_TEL) INLINE_SIZE 10 PARALLEL 8");
 		logger.info(">>>>> create index mobile span={}", (System.currentTimeMillis() - t0));
 
 		t0 = System.currentTimeMillis();
-		createIndex("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + SINK_TABLE_T_PARTY_CONTACT + " (EMAIL)  INLINE_SIZE 20 PARALLEL 8");
+		createIndex("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + this.sinkTablePartyContact + " (EMAIL)  INLINE_SIZE 20 PARALLEL 8");
 		logger.info(">>>>> create index email span={}", (System.currentTimeMillis() - t0));
 
 		t0 = System.currentTimeMillis();
-		createIndex("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + SINK_TABLE_T_PARTY_CONTACT + " (ADDRESS_1)  INLINE_SIZE 60 PARALLEL 8");
+		createIndex("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + this.sinkTablePartyContact + " (ADDRESS_1)  INLINE_SIZE 60 PARALLEL 8");
 		logger.info(">>>>> create index address span={}", (System.currentTimeMillis() - t0));
 
 		t0 = System.currentTimeMillis();
-		createIndex("CREATE INDEX IDX_STREAMING_ETL_HEALTH_1 ON " + SINK_TABLE_T_STREAMING_ETL_HEALTH + " (CDC_TIME) PARALLEL 8");
+		createIndex("CREATE INDEX IDX_STREAMING_ETL_HEALTH_1 ON " + this.sinkTableStreamingEtlHealth + " (CDC_TIME) PARALLEL 8");
 		logger.info(">>>>> create index streamingetlhealth cdc_time span={}", (System.currentTimeMillis() - t0));
 
 		
