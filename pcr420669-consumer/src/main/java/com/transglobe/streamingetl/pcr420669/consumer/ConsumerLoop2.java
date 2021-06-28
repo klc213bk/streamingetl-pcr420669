@@ -135,20 +135,29 @@ public class ConsumerLoop2 implements Runnable {
 
 							String tableName = payload.get("TABLE_NAME").asText();
 							//	logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
-							if (!StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
-								logger.info("   >>>payload={}", payload.toPrettyString());
-							}
-
-							// T 表
+							
+							boolean isTtable = false;
+							boolean isTlogtable = false;
 							if (StringUtils.equals(policyHolderTableName, tableName)
 									|| StringUtils.equals(insuredListTableName, tableName)
-									|| StringUtils.equals(contractBeneTableName, tableName)) {
-
+									|| StringUtils.equals(contractBeneTableName, tableName) ) {
+								isTtable = true;		
+							} else if (StringUtils.equals(policyHolderTableNameLog, tableName)
+									|| StringUtils.equals(insuredListTableNameLog, tableName)
+									|| StringUtils.equals(contractBeneTableNameLog, tableName) ) {
+								isTlogtable = true;
+							}
+								
+							
+							
+							PartyContact partyContact = null;
+							PartyContact beforePartyContact = null;
+							if (isTtable || isTlogtable) {
+								logger.info("   >>>payload={}", payload.toPrettyString());
 								String payLoadData = payload.get("data").toString();
 								String beforePayLoadData = payload.get("before").toString();
-
-								PartyContact partyContact = objectMapper.readValue(payLoadData, PartyContact.class);;
-								PartyContact beforePartyContact = objectMapper.readValue(beforePayLoadData, PartyContact.class);;
+								partyContact = objectMapper.readValue(payLoadData, PartyContact.class);;
+								beforePartyContact = objectMapper.readValue(beforePayLoadData, PartyContact.class);;
 
 								if (partyContact != null) { 
 									partyContact.setMobileTel(StringUtils.trim(partyContact.getMobileTel()));
@@ -177,6 +186,10 @@ public class ConsumerLoop2 implements Runnable {
 								logger.info("   >>>operation={}", operation);
 								logger.info("   >>>partyContact={}, beforePartyContact={}", partyContact,beforePartyContact);
 
+							} 
+
+							// T 表
+							if (isTtable) {
 								// check sourceSyncTableContractMaster
 								sourceConn = sourceConnPool.getConnection();
 								int liabilityState = (partyContact != null)? getLiabilityState(sourceConn, partyContact.getPolicyId())
@@ -202,24 +215,16 @@ public class ConsumerLoop2 implements Runnable {
 								}
 
 							} // Log 表
-							else if (StringUtils.equals(policyHolderTableNameLog, tableName)
-									|| StringUtils.equals(insuredListTableNameLog, tableName)
-									|| StringUtils.equals(contractBeneTableNameLog, tableName)) {
+							else if (isTlogtable) {
 
-								String payLoadData = payload.get("data").toString();
-
-								PartyContact partyContact = objectMapper.readValue(payLoadData, PartyContact.class);
-								String lastCmtFlg = partyContact.getLastCmtFlg();
+								String lastCmtFlg = (partyContact != null)? partyContact.getLastCmtFlg()
+										: beforePartyContact.getLastCmtFlg();
 
 								// LAST_CMT_FLG ＝ ʻYʻ 同步(Insert/update)
 								if (StringUtils.equals("Y", lastCmtFlg)) {
 									if ("INSERT".equals(operation)) {
 										insertPartyContact(sinkConn, partyContact);
-									} else if ("UPDATE".equals(operation)) {
-										String beforePayLoadData = payload.get("before").toString();
-										PartyContact beforePartyContact = objectMapper.readValue(beforePayLoadData, PartyContact.class);
-										logger.info("   >>>Log beforePartyContact={}", beforePartyContact);
-
+									} else if ("UPDATE".equals(operation)) {				
 										if (partyContact.equals(beforePartyContact)) {
 											// ignore
 										} else {
@@ -229,12 +234,12 @@ public class ConsumerLoop2 implements Runnable {
 								} 
 								// LAST_CMT_FLG ＝ ʻNʻ 且 t_policy_change.policy_chg_status ＝2 同步 (Delete)
 								else {
-									Long policyChgId = partyContact.getPolicyChgId();
+									Long policyChgId = beforePartyContact.getPolicyChgId();
 									int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
 
 									// delete
 									if (policyChgStatus == 2) {
-										deletePartyContact(sinkConn, partyContact);
+										deletePartyContact(sinkConn, beforePartyContact);
 									} else {
 										// ignore
 									}
@@ -258,7 +263,9 @@ public class ConsumerLoop2 implements Runnable {
 									}	
 
 								} else if ("DELETE".equals(operation)) {
-									deleteAddress(sinkConn, address);
+									String beforePayLoadData = payload.get("before").toString();
+									Address beforeAddress = objectMapper.readValue(beforePayLoadData, Address.class);
+									deleteAddress(sinkConn, beforeAddress);
 								}
 							} else if (StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
 								doHealth(sinkConn, objectMapper, payload);
@@ -656,7 +663,7 @@ public class ConsumerLoop2 implements Runnable {
 		try {
 			// update PartyContact
 			sql = "update " + config.sinkTablePartyContact
-					+ " set ADDRESS_1 = null where ADDRESS_ID = ?";
+					+ " set ADDRESS_ID = null;ADDRESS_1 = null where ADDRESS_ID = ?";
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.setLong(1, address.getAddressId());
 
