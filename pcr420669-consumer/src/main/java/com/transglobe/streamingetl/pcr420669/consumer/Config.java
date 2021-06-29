@@ -20,6 +20,7 @@ public class Config {
 	public String sourceTableAddress;
 	public String sourceTableStreamingEtlHealthCdc;
 	
+	public String sourceSyncTableAddress;
 	public String sourceSyncTableContractMaster;
 	public String sourceSyncTablePolicyChange;
 	
@@ -59,6 +60,7 @@ public class Config {
 			config.sourceTableAddress = prop.getProperty("source.table.address");
 			config.sourceTableStreamingEtlHealthCdc = prop.getProperty("source.table.streaming.etl.health.cdc");
 
+			config.sourceSyncTableAddress = prop.getProperty("source.sync.table.address");
 			config.sourceSyncTableContractMaster = prop.getProperty("source.sync.table.contract_master");
 			config.sourceSyncTablePolicyChange = prop.getProperty("source.sync.table.policy_change");
 			

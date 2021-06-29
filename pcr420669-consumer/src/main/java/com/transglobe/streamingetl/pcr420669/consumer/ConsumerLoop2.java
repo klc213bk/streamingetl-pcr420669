@@ -49,10 +49,12 @@ public class ConsumerLoop2 implements Runnable {
 	private String policyHolderTableNameLog;
 	private String insuredListTableNameLog;
 	private String contractBeneTableNameLog;
-
-	private String streamingEtlHealthCdcTableName;
 	private String addressTableName;
+	
+	private String streamingEtlHealthCdcTableName;
 
+
+	private String sourceSyncTableAddress;
 	private String sourceSyncTableContractMaster;
 	private String sourceSyncTablePolicyChange;
 
@@ -81,6 +83,7 @@ public class ConsumerLoop2 implements Runnable {
 		contractBeneTableNameLog = config.sourceTableContractBeneLog;
 		addressTableName = config.sourceTableAddress;
 
+		sourceSyncTableAddress = config.sourceSyncTableAddress;
 		sourceSyncTableContractMaster = config.sourceSyncTableContractMaster;
 		sourceSyncTablePolicyChange = config.sourceSyncTablePolicyChange;
 	}
@@ -90,10 +93,12 @@ public class ConsumerLoop2 implements Runnable {
 
 		try {
 			consumer.subscribe(config.topicList);
-
+			
+			logger.info("   >>>>>>>>>>>>>>>>>>>>>>>> run ..........");
+			
 			while (true) {
-				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(100));
-
+				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500));
+				
 				if (records.count() > 0) {
 					Connection sinkConn = null;
 					Connection sourceConn = null;
@@ -114,7 +119,6 @@ public class ConsumerLoop2 implements Runnable {
 					}
 					sinkConn = sinkConnPool.getConnection();
 
-
 					for (ConsumerRecord<String, String> record : records) {
 						Map<String, Object> data = new HashMap<>();
 						try {	
@@ -134,7 +138,7 @@ public class ConsumerLoop2 implements Runnable {
 							String operation = payload.get("OPERATION").asText();
 
 							String tableName = payload.get("TABLE_NAME").asText();
-							//	logger.info("   >>>operation={}, fullTableName={}", operation, fullTableName);
+							logger.info("   >>>operation={}, TableName={}", operation, tableName);
 							
 							boolean isTtable = false;
 							boolean isTlogtable = false;
@@ -147,8 +151,6 @@ public class ConsumerLoop2 implements Runnable {
 									|| StringUtils.equals(contractBeneTableNameLog, tableName) ) {
 								isTlogtable = true;
 							}
-								
-							
 							
 							PartyContact partyContact = null;
 							PartyContact beforePartyContact = null;
@@ -156,36 +158,44 @@ public class ConsumerLoop2 implements Runnable {
 								logger.info("   >>>payload={}", payload.toPrettyString());
 								String payLoadData = payload.get("data").toString();
 								String beforePayLoadData = payload.get("before").toString();
-								partyContact = objectMapper.readValue(payLoadData, PartyContact.class);;
-								beforePartyContact = objectMapper.readValue(beforePayLoadData, PartyContact.class);;
+								partyContact = (payLoadData == null)? null : objectMapper.readValue(payLoadData, PartyContact.class);;
+								beforePartyContact = (beforePayLoadData == null)? null : objectMapper.readValue(beforePayLoadData.toString(), PartyContact.class);;
 
 								if (partyContact != null) { 
 									partyContact.setMobileTel(StringUtils.trim(partyContact.getMobileTel()));
 									partyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(partyContact.getEmail())));
-									if (config.sourceTablePolicyHolder.equals(tableName)) {
+									if (config.sourceTablePolicyHolder.equals(tableName)
+											|| config.sourceTablePolicyHolderLog.equals(tableName)) {
 										partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
-									} else if (config.sourceTableInsuredList.equals(tableName)) {
+									} else if (config.sourceTableInsuredList.equals(tableName)
+											|| config.sourceTableInsuredListLog.equals(tableName)) {
 										partyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
-									} else if (config.sourceTableContractBene.equals(tableName)) {
+									} else if (config.sourceTableContractBene.equals(tableName)
+											|| config.sourceTableContractBeneLog.equals(tableName)) {
 										partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 										partyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 									} 
+									
 								}
 								if (beforePartyContact != null) { 
 									beforePartyContact.setMobileTel(StringUtils.trim(beforePartyContact.getMobileTel()));
 									beforePartyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(beforePartyContact.getEmail())));
-									if (config.sourceTablePolicyHolder.equals(tableName)) {
+									if (config.sourceTablePolicyHolder.equals(tableName)
+											|| config.sourceTablePolicyHolderLog.equals(tableName)) {
 										beforePartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
-									} else if (config.sourceTableInsuredList.equals(tableName)) {
+									} else if (config.sourceTableInsuredList.equals(tableName)
+											|| config.sourceTableInsuredListLog.equals(tableName)) {
 										beforePartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
-									} else if (config.sourceTableContractBene.equals(tableName)) {
+									} else if (config.sourceTableContractBene.equals(tableName)
+											|| config.sourceTableContractBeneLog.equals(tableName)) {
 										beforePartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 										beforePartyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 									} 
-								}
-								logger.info("   >>>operation={}", operation);
-								logger.info("   >>>partyContact={}, beforePartyContact={}", partyContact,beforePartyContact);
-
+									
+								}			
+								logger.info("   >>>partyContact={}", ((partyContact == null)? null : ToStringBuilder.reflectionToString(partyContact)));
+								logger.info("   >>>beforepartyContact={}", ((beforePartyContact == null)? null : ToStringBuilder.reflectionToString(beforePartyContact)));
+	
 							} 
 
 							// T 表
@@ -199,7 +209,7 @@ public class ConsumerLoop2 implements Runnable {
 								if (liabilityState == 0) {
 									// do  同步(Insert/Update/Delete)
 									if ("INSERT".equals(operation)) {
-										insertPartyContact(sinkConn, partyContact);
+										insertPartyContact(sourceConn, sinkConn, partyContact);
 									} else if ("UPDATE".equals(operation)) {
 										if (partyContact.equals(beforePartyContact)) {
 											// ignore
@@ -216,14 +226,15 @@ public class ConsumerLoop2 implements Runnable {
 
 							} // Log 表
 							else if (isTlogtable) {
-
+								sourceConn = sourceConnPool.getConnection();
+								
 								String lastCmtFlg = (partyContact != null)? partyContact.getLastCmtFlg()
 										: beforePartyContact.getLastCmtFlg();
 
 								// LAST_CMT_FLG ＝ ʻYʻ 同步(Insert/update)
 								if (StringUtils.equals("Y", lastCmtFlg)) {
 									if ("INSERT".equals(operation)) {
-										insertPartyContact(sinkConn, partyContact);
+										insertPartyContact(sourceConn, sinkConn, partyContact);
 									} else if ("UPDATE".equals(operation)) {				
 										if (partyContact.equals(beforePartyContact)) {
 											// ignore
@@ -249,13 +260,17 @@ public class ConsumerLoop2 implements Runnable {
 							} // Address 表
 							else if (StringUtils.equals(addressTableName, tableName)) {
 								String payLoadData = payload.get("data").toString();
-								Address address = objectMapper.readValue(payLoadData, Address.class);
+								String beforePayLoadData = payload.get("before").toString();
+								Address address = (payLoadData == null)? null : objectMapper.readValue(payLoadData, Address.class);
+								Address beforeAddress = (beforePayLoadData == null)? null : objectMapper.readValue(beforePayLoadData, Address.class);
+								
+								logger.info("   >>>address={}", ((address == null)? null : ToStringBuilder.reflectionToString(address)));
+								logger.info("   >>>beforeAddress={}", ((beforeAddress == null)? null : ToStringBuilder.reflectionToString(beforeAddress)));
+								
 								if ("INSERT".equals(operation)) {
 									insertAddress(sinkConn, address);
 								} else if ("UPDATE".equals(operation)) {
-									String beforePayLoadData = payload.get("before").toString();
-									Address beforeAddress = objectMapper.readValue(beforePayLoadData, Address.class);
-									logger.info("   >>>beforeAddress={}", beforeAddress);
+									
 									if (address.equals(beforeAddress)) {
 										// ignore
 									} else {
@@ -263,8 +278,6 @@ public class ConsumerLoop2 implements Runnable {
 									}	
 
 								} else if ("DELETE".equals(operation)) {
-									String beforePayLoadData = payload.get("before").toString();
-									Address beforeAddress = objectMapper.readValue(beforePayLoadData, Address.class);
 									deleteAddress(sinkConn, beforeAddress);
 								}
 							} else if (StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
@@ -343,7 +356,7 @@ public class ConsumerLoop2 implements Runnable {
 		ResultSet rs = null;
 		Integer policyChgStatus = null;
 		try {
-			sql = "select POLICY_CHG_STATUS from " + this.sourceSyncTablePolicyChange + " where POLICY_ID = ?";
+			sql = "select POLICY_CHG_STATUS from " + this.sourceSyncTablePolicyChange + " where POLICY_CHG_ID = ?";
 			pstmt = sourceConn.prepareStatement(sql);
 			pstmt.setLong(1, policyChgId);
 			rs = pstmt.executeQuery();
@@ -385,7 +398,7 @@ public class ConsumerLoop2 implements Runnable {
 		ResultSet rs = null;
 		String address1 = null;
 		try {
-			sql = "select ADDRESS_1 from " + this.addressTableName + " where ADDRESS_ID = ?";
+			sql = "select ADDRESS_1 from " + this.sourceSyncTableAddress + " where ADDRESS_ID = ?";
 			pstmt = sourceConn.prepareStatement(sql);
 			pstmt.setLong(1, addressId);
 			rs = pstmt.executeQuery();
@@ -401,7 +414,7 @@ public class ConsumerLoop2 implements Runnable {
 		return address1;
 	}
 
-	private void insertPartyContact(Connection sinkConn, PartyContact partyContact) throws Exception  {
+	private void insertPartyContact(Connection sourceConn, Connection sinkConn, PartyContact partyContact) throws Exception  {
 		PreparedStatement pstmt = null;
 		try {
 			String sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
@@ -427,7 +440,7 @@ public class ConsumerLoop2 implements Runnable {
 					pstmt.executeUpdate();
 					pstmt.close();
 				} else {
-					String address1 = getSourceAddress1(sinkConn, partyContact.getAddressId());
+					String address1 = getSourceAddress1(sourceConn, partyContact.getAddressId());
 					partyContact.setAddress1(address1);
 
 					sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
