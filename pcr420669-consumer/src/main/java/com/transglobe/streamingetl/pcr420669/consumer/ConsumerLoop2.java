@@ -50,7 +50,7 @@ public class ConsumerLoop2 implements Runnable {
 	private String insuredListTableNameLog;
 	private String contractBeneTableNameLog;
 	private String addressTableName;
-	
+
 	private String streamingEtlHealthCdcTableName;
 
 
@@ -93,12 +93,12 @@ public class ConsumerLoop2 implements Runnable {
 
 		try {
 			consumer.subscribe(config.topicList);
-			
+
 			logger.info("   >>>>>>>>>>>>>>>>>>>>>>>> run ..........");
-			
+
 			while (true) {
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500));
-				
+
 				if (records.count() > 0) {
 					Connection sinkConn = null;
 					Connection sourceConn = null;
@@ -139,7 +139,7 @@ public class ConsumerLoop2 implements Runnable {
 
 							String tableName = payload.get("TABLE_NAME").asText();
 							logger.info("   >>>operation={}, TableName={}", operation, tableName);
-							
+
 							boolean isTtable = false;
 							boolean isTlogtable = false;
 							if (StringUtils.equals(policyHolderTableName, tableName)
@@ -151,7 +151,7 @@ public class ConsumerLoop2 implements Runnable {
 									|| StringUtils.equals(contractBeneTableNameLog, tableName) ) {
 								isTlogtable = true;
 							}
-							
+
 							PartyContact partyContact = null;
 							PartyContact beforePartyContact = null;
 							if (isTtable || isTlogtable) {
@@ -175,7 +175,7 @@ public class ConsumerLoop2 implements Runnable {
 										partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 										partyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 									} 
-									
+
 								}
 								if (beforePartyContact != null) { 
 									beforePartyContact.setMobileTel(StringUtils.trim(beforePartyContact.getMobileTel()));
@@ -191,11 +191,11 @@ public class ConsumerLoop2 implements Runnable {
 										beforePartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
 										beforePartyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
 									} 
-									
+
 								}			
 								logger.info("   >>>partyContact={}", ((partyContact == null)? null : ToStringBuilder.reflectionToString(partyContact)));
 								logger.info("   >>>beforepartyContact={}", ((beforePartyContact == null)? null : ToStringBuilder.reflectionToString(beforePartyContact)));
-	
+
 							} 
 
 							// T 表
@@ -227,50 +227,50 @@ public class ConsumerLoop2 implements Runnable {
 							} // Log 表
 							else if (isTlogtable) {
 								sourceConn = sourceConnPool.getConnection();
-								
+
 								String lastCmtFlg = (partyContact != null)? partyContact.getLastCmtFlg()
 										: beforePartyContact.getLastCmtFlg();
 
 								// LAST_CMT_FLG ＝ ʻYʻ 同步(Insert/update)
-								if (StringUtils.equals("Y", lastCmtFlg)) {
-									if ("INSERT".equals(operation)) {
+								if ("INSERT".equals(operation) ) {
+									if (StringUtils.equals("Y", lastCmtFlg)) {
 										insertPartyContact(sourceConn, sinkConn, partyContact);
-									} else if ("UPDATE".equals(operation)) {				
+									}
+								} else if ("UPDATE".equals(operation)) {
+									if (StringUtils.equals("Y", lastCmtFlg)) {
 										if (partyContact.equals(beforePartyContact)) {
 											// ignore
 										} else {
 											updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
 										}	
-									}
-								} 
-								// LAST_CMT_FLG ＝ ʻNʻ 且 t_policy_change.policy_chg_status ＝2 同步 (Delete)
-								else {
-									Long policyChgId = beforePartyContact.getPolicyChgId();
-									int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
+									} 
+									// LAST_CMT_FLG ＝ ʻNʻ 且 t_policy_change.policy_chg_status ＝2 同步 (Delete)
+									else if (StringUtils.equals("N", lastCmtFlg)) {
+										Long policyChgId = beforePartyContact.getPolicyChgId();
+										int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
 
-									// delete
-									if (policyChgStatus == 2) {
-										deletePartyContact(sinkConn, beforePartyContact);
-									} else {
-										// ignore
+										// delete
+										if (policyChgStatus == 2) {
+											deletePartyContact(sinkConn, beforePartyContact);
+										} else {
+											// ignore
+										}
 									}
 								}
-
-
 							} // Address 表
 							else if (StringUtils.equals(addressTableName, tableName)) {
 								String payLoadData = payload.get("data").toString();
 								String beforePayLoadData = payload.get("before").toString();
 								Address address = (payLoadData == null)? null : objectMapper.readValue(payLoadData, Address.class);
 								Address beforeAddress = (beforePayLoadData == null)? null : objectMapper.readValue(beforePayLoadData, Address.class);
-								
+
 								logger.info("   >>>address={}", ((address == null)? null : ToStringBuilder.reflectionToString(address)));
 								logger.info("   >>>beforeAddress={}", ((beforeAddress == null)? null : ToStringBuilder.reflectionToString(beforeAddress)));
-								
+
 								if ("INSERT".equals(operation)) {
 									insertAddress(sinkConn, address);
 								} else if ("UPDATE".equals(operation)) {
-									
+
 									if (address.equals(beforeAddress)) {
 										// ignore
 									} else {
