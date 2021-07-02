@@ -1,6 +1,6 @@
 #!/bin/bash
 
-APP_HOME=/home/oracle/gitrepository/transglobe/streamingetl-pcr420669
+APP_HOME=/home/steven/gitrepo/transglobe/streamingetl-pcr420669
 
 ./start-initialload.sh noload
 
