@@ -97,7 +97,7 @@ public class ConsumerLoop2 implements Runnable {
 			logger.info("   >>>>>>>>>>>>>>>>>>>>>>>> run ..........");
 
 			while (true) {
-				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500));
+				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
 
 				if (records.count() > 0) {
 					//Connection sinkConn = null;
