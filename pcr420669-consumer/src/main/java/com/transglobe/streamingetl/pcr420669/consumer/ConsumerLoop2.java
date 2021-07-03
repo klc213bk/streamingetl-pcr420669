@@ -100,8 +100,8 @@ public class ConsumerLoop2 implements Runnable {
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(500));
 
 				if (records.count() > 0) {
-					Connection sinkConn = null;
-					Connection sourceConn = null;
+					//Connection sinkConn = null;
+				//Connection sourceConn = null;
 					int tries = 0;
 
 					while (sinkConnPool.isClosed()) {
@@ -117,11 +117,15 @@ public class ConsumerLoop2 implements Runnable {
 						}
 
 					}
-					sinkConn = sinkConnPool.getConnection();
+					
 
 					for (ConsumerRecord<String, String> record : records) {
 						Map<String, Object> data = new HashMap<>();
+						
+						Connection sourceConn = null;
+						Connection sinkConn = null;
 						try {	
+							sinkConn = sinkConnPool.getConnection();
 							sinkConn.setAutoCommit(false);
 							data.put("partition", record.partition());
 							data.put("offset", record.offset());
@@ -289,10 +293,12 @@ public class ConsumerLoop2 implements Runnable {
 							sinkConn.commit();
 						} catch(Exception e) {
 							logger.error(">>>message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), data);
+						} finally {
+							if (sinkConn != null) sinkConn.close();
+							if (sourceConn != null) sourceConn.close();
 						}
 					}
-					if (sourceConn != null && !sourceConn.isClosed()) sourceConn.close();
-					if (sinkConn != null && !sinkConn.isClosed()) sinkConn.close();
+					
 				}
 
 
