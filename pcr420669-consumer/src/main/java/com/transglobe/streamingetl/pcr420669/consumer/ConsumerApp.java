@@ -18,8 +18,6 @@ public class ConsumerApp {
 
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	
-	private static final String GROUP_ID = "consumer-pcr420669-group";
-	
 	private static final int NUM_CONSUMERS = 1;
 
 	private static BasicDataSource sinkConnPool;
@@ -37,7 +35,7 @@ public class ConsumerApp {
 			e1.printStackTrace();
 		}
 
-		String groupId = GROUP_ID;
+		String groupId = config.groupId;
 //		List<String> topics = Arrays.asList(
 //				"ebao.cdc.test_t_policy_holder.0",
 //				"ebao.cdc.test_t_insured_list.0",
@@ -64,7 +62,7 @@ public class ConsumerApp {
 
 		final List<ConsumerLoop2> consumers = new ArrayList<>();
 		for (int i = 0; i < NUM_CONSUMERS; i++) {
-			ConsumerLoop2 consumer = new ConsumerLoop2(i, groupId, config, sourceConnPool, sinkConnPool);
+			ConsumerLoop2 consumer = new ConsumerLoop2((i + 1), groupId, config, sourceConnPool, sinkConnPool);
 			consumers.add(consumer);
 			executor.submit(consumer);
 		}

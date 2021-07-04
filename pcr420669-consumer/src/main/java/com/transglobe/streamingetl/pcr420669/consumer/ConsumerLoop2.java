@@ -70,6 +70,7 @@ public class ConsumerLoop2 implements Runnable {
 		Properties props = new Properties();
 		props.put("bootstrap.servers", config.bootstrapServers);
 		props.put("group.id", groupId);
+		props.put("client.id", groupId + "-" + id );
 		props.put("key.deserializer", StringDeserializer.class.getName());
 		props.put("value.deserializer", StringDeserializer.class.getName());
 		this.consumer = new KafkaConsumer<>(props);
@@ -125,6 +126,7 @@ public class ConsumerLoop2 implements Runnable {
 						Connection sourceConn = null;
 						Connection sinkConn = null;
 						try {	
+							sourceConn = sourceConnPool.getConnection();
 							sinkConn = sinkConnPool.getConnection();
 							sinkConn.setAutoCommit(false);
 							data.put("partition", record.partition());
@@ -142,7 +144,7 @@ public class ConsumerLoop2 implements Runnable {
 							String operation = payload.get("OPERATION").asText();
 
 							String tableName = payload.get("TABLE_NAME").asText();
-							logger.info("   >>>operation={}, TableName={}", operation, tableName);
+							logger.info("   >>>offset={},operation={}, TableName={}", record.offset(), operation, tableName);
 
 							boolean isTtable = false;
 							boolean isTlogtable = false;
@@ -205,7 +207,6 @@ public class ConsumerLoop2 implements Runnable {
 							// T 表
 							if (isTtable) {
 								// check sourceSyncTableContractMaster
-								sourceConn = sourceConnPool.getConnection();
 								int liabilityState = (partyContact != null)? getLiabilityState(sourceConn, partyContact.getPolicyId())
 										: getLiabilityState(sourceConn, beforePartyContact.getPolicyId());
 								logger.info("   >>>liabilityState={}", liabilityState);
@@ -230,8 +231,6 @@ public class ConsumerLoop2 implements Runnable {
 
 							} // Log 表
 							else if (isTlogtable) {
-								sourceConn = sourceConnPool.getConnection();
-
 								String lastCmtFlg = (partyContact != null)? partyContact.getLastCmtFlg()
 										: beforePartyContact.getLastCmtFlg();
 
@@ -292,7 +291,7 @@ public class ConsumerLoop2 implements Runnable {
 
 							sinkConn.commit();
 						} catch(Exception e) {
-							logger.error(">>>message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), data);
+							logger.error(">>>record error, message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), data);
 						} finally {
 							if (sinkConn != null) sinkConn.close();
 							if (sourceConn != null) sourceConn.close();
@@ -305,7 +304,7 @@ public class ConsumerLoop2 implements Runnable {
 			}
 		} catch (Exception e) {
 			// ignore for shutdown 
-			logger.error(">>>message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+			logger.error(">>>Consumer error, message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 
 		} finally {
 			consumer.close();
@@ -314,7 +313,7 @@ public class ConsumerLoop2 implements Runnable {
 				try {
 					sinkConnPool.close();
 				} catch (SQLException e) {
-					logger.error(">>>message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+					logger.error(">>>Consumer error, finally message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 				}
 			}
 		}
