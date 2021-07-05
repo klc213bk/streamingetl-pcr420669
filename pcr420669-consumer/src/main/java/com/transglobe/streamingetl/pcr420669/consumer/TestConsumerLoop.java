@@ -60,7 +60,7 @@ public class TestConsumerLoop implements Runnable {
 		props.put("group.instance.id", groupId + "-mygid" );
 		props.put("key.deserializer", StringDeserializer.class.getName());
 		props.put("value.deserializer", StringDeserializer.class.getName());
-		props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 30000);
+//		props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 30000);
 		this.consumer = new KafkaConsumer<>(props);
 
 	}

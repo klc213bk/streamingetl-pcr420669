@@ -5,19 +5,14 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,21 +23,19 @@ import com.transglobe.streamingetl.pcr420669.consumer.model.Address;
 import com.transglobe.streamingetl.pcr420669.consumer.model.PartyContact;
 import com.transglobe.streamingetl.pcr420669.consumer.model.StreamingEtlHealthCdc;
 
-public class ConsumerLoop2 implements Runnable {
-	static final Logger logger = LoggerFactory.getLogger(ConsumerLoop2.class);
-
+public class ProcessJob implements Runnable {
+	static final Logger logger = LoggerFactory.getLogger(ProcessJob.class);
+	
 	private static final Integer POLICY_HOLDER_ROLE_TYPE = 1;
 	private static final Integer INSURED_LIST_ROLE_TYPE = 2;
 	private static final Integer CONTRACT_BENE_ROLE_TYPE = 3;
-
-	private final KafkaConsumer<String, String> consumer;
-	private final int id;
-
-	private Config config;
-
+	
+	private ConsumerRecord<String, String> record;
 	private BasicDataSource sourceConnPool;
 	private BasicDataSource sinkConnPool;
-
+	
+	private Config config;
+	
 	private String policyHolderTableName;
 	private String insuredListTableName;
 	private String contractBeneTableName;
@@ -53,28 +46,17 @@ public class ConsumerLoop2 implements Runnable {
 
 	private String streamingEtlHealthCdcTableName;
 
-
 	private String sourceSyncTableAddress;
 	private String sourceSyncTableContractMaster;
 	private String sourceSyncTablePolicyChange;
-
-	public ConsumerLoop2(int id,
-			String groupId,  
-			Config config,
-			BasicDataSource sourceConnPool,
-			BasicDataSource sinkConnPool) {
-		this.id = id;
-		this.config = config;
+	
+	public ProcessJob(ConsumerRecord<String, String> record, BasicDataSource sourceConnPool
+			, BasicDataSource sinkConnPool, Config config) {
+		this.record = record;
 		this.sourceConnPool = sourceConnPool;
 		this.sinkConnPool = sinkConnPool;
-		Properties props = new Properties();
-		props.put("bootstrap.servers", config.bootstrapServers);
-		props.put("group.id", groupId);
-		props.put("client.id", groupId + "-" + id );
-		props.put("key.deserializer", StringDeserializer.class.getName());
-		props.put("value.deserializer", StringDeserializer.class.getName());
-		this.consumer = new KafkaConsumer<>(props);
-
+		this.config = config;
+		
 		streamingEtlHealthCdcTableName = config.sourceTableStreamingEtlHealthCdc;
 		policyHolderTableName = config.sourceTablePolicyHolder;
 		insuredListTableName = config.sourceTableInsuredList;
@@ -88,248 +70,197 @@ public class ConsumerLoop2 implements Runnable {
 		sourceSyncTableContractMaster = config.sourceSyncTableContractMaster;
 		sourceSyncTablePolicyChange = config.sourceSyncTablePolicyChange;
 	}
-
+	
 	@Override
 	public void run() {
-
+		Map<String, Object> data = new HashMap<>();
+		Connection sourceConn = null;
+		Connection sinkConn = null;
 		try {
-			consumer.subscribe(config.topicList);
+			sourceConn = sourceConnPool.getConnection();
+			sinkConn = sinkConnPool.getConnection();
+			
+			sinkConn.setAutoCommit(false);
+			data.put("partition", record.partition());
+			data.put("offset", record.offset());
+			data.put("value", record.value());
+			
+			ObjectMapper objectMapper = new ObjectMapper();
+			objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
-			logger.info("   >>>>>>>>>>>>>>>>>>>>>>>> run ..........");
+			JsonNode jsonNode = objectMapper.readTree(record.value());
+			JsonNode payload = jsonNode.get("payload");
+			
+			String operation = payload.get("OPERATION").asText();
 
-			while (true) {
-				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+			String tableName = payload.get("TABLE_NAME").asText();
+			logger.info("   >>>offset={},operation={}, TableName={}", record.offset(), operation, tableName);
 
-				if (records.count() > 0) {
-					//Connection sinkConn = null;
-				//Connection sourceConn = null;
-					int tries = 0;
+			boolean isTtable = false;
+			boolean isTlogtable = false;
+			if (StringUtils.equals(policyHolderTableName, tableName)
+					|| StringUtils.equals(insuredListTableName, tableName)
+					|| StringUtils.equals(contractBeneTableName, tableName) ) {
+				isTtable = true;		
+			} else if (StringUtils.equals(policyHolderTableNameLog, tableName)
+					|| StringUtils.equals(insuredListTableNameLog, tableName)
+					|| StringUtils.equals(contractBeneTableNameLog, tableName) ) {
+				isTlogtable = true;
+			}
+			
+			PartyContact partyContact = null;
+			PartyContact beforePartyContact = null;
+			if (isTtable || isTlogtable) {
+				logger.info("   >>>payload={}", payload.toPrettyString());
+				String payLoadData = payload.get("data").toString();
+				String beforePayLoadData = payload.get("before").toString();
+				partyContact = (payLoadData == null)? null : objectMapper.readValue(payLoadData, PartyContact.class);;
+				beforePartyContact = (beforePayLoadData == null)? null : objectMapper.readValue(beforePayLoadData.toString(), PartyContact.class);;
 
-					while (sinkConnPool.isClosed()) {
-						tries++;
-						try {
-							sinkConnPool.restart();
+				if (partyContact != null) { 
+					partyContact.setMobileTel(StringUtils.trim(partyContact.getMobileTel()));
+					partyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(partyContact.getEmail())));
+					if (policyHolderTableName.equals(tableName)
+							|| policyHolderTableNameLog.equals(tableName)) {
+						partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
+					} else if (insuredListTableName.equals(tableName)
+							|| insuredListTableNameLog.equals(tableName)) {
+						partyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
+					} else if (contractBeneTableName.equals(tableName)
+							|| contractBeneTableNameLog.equals(tableName)) {
+						partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
+						partyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
+					} 
 
-							logger.info("   >>> Connection Pool restart, try {} times", tries);
+				}
+				if (beforePartyContact != null) { 
+					beforePartyContact.setMobileTel(StringUtils.trim(beforePartyContact.getMobileTel()));
+					beforePartyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(beforePartyContact.getEmail())));
+					if (policyHolderTableName.equals(tableName)
+							|| policyHolderTableNameLog.equals(tableName)) {
+						beforePartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
+					} else if (insuredListTableName.equals(tableName)
+							|| insuredListTableNameLog.equals(tableName)) {
+						beforePartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
+					} else if (contractBeneTableName.equals(tableName)
+							|| contractBeneTableNameLog.equals(tableName)) {
+						beforePartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
+						beforePartyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
+					} 
 
-							Thread.sleep(30000);
-						} catch (Exception e) {
-							logger.error(">>> message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+				}			
+				logger.info("   >>>partyContact={}", ((partyContact == null)? null : ToStringBuilder.reflectionToString(partyContact)));
+				logger.info("   >>>beforepartyContact={}", ((beforePartyContact == null)? null : ToStringBuilder.reflectionToString(beforePartyContact)));
+
+			} 
+			// T 表
+			if (isTtable) {
+				// check sourceSyncTableContractMaster
+				int liabilityState = (partyContact != null)? getLiabilityState(sourceConn, partyContact.getPolicyId())
+						: getLiabilityState(sourceConn, beforePartyContact.getPolicyId());
+				logger.info("   >>>liabilityState={}", liabilityState);
+
+				if (liabilityState == 0) {
+					// do  同步(Insert/Update/Delete)
+					if ("INSERT".equals(operation)) {
+						insertPartyContact(sourceConn, sinkConn, partyContact);
+					} else if ("UPDATE".equals(operation)) {
+						if (partyContact.equals(beforePartyContact)) {
+							// ignore
+						} else {
+							updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
 						}
-
+					} else if ("DELETE".equals(operation)) {
+						deletePartyContact(sinkConn, beforePartyContact);
 					}
-					
 
-					for (ConsumerRecord<String, String> record : records) {
-						Map<String, Object> data = new HashMap<>();
-						
-						Connection sourceConn = null;
-						Connection sinkConn = null;
-						try {	
-							sourceConn = sourceConnPool.getConnection();
-							sinkConn = sinkConnPool.getConnection();
-							sinkConn.setAutoCommit(false);
-							data.put("partition", record.partition());
-							data.put("offset", record.offset());
-							data.put("value", record.value());
-							//					System.out.println(this.id + ": " + data);
-
-							ObjectMapper objectMapper = new ObjectMapper();
-							objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-
-							JsonNode jsonNode = objectMapper.readTree(record.value());
-							JsonNode payload = jsonNode.get("payload");
-							//	payloadStr = payload.toString();
-
-							String operation = payload.get("OPERATION").asText();
-
-							String tableName = payload.get("TABLE_NAME").asText();
-							logger.info("   >>>offset={},operation={}, TableName={}", record.offset(), operation, tableName);
-
-							boolean isTtable = false;
-							boolean isTlogtable = false;
-							if (StringUtils.equals(policyHolderTableName, tableName)
-									|| StringUtils.equals(insuredListTableName, tableName)
-									|| StringUtils.equals(contractBeneTableName, tableName) ) {
-								isTtable = true;		
-							} else if (StringUtils.equals(policyHolderTableNameLog, tableName)
-									|| StringUtils.equals(insuredListTableNameLog, tableName)
-									|| StringUtils.equals(contractBeneTableNameLog, tableName) ) {
-								isTlogtable = true;
-							}
-
-							PartyContact partyContact = null;
-							PartyContact beforePartyContact = null;
-							if (isTtable || isTlogtable) {
-								logger.info("   >>>payload={}", payload.toPrettyString());
-								String payLoadData = payload.get("data").toString();
-								String beforePayLoadData = payload.get("before").toString();
-								partyContact = (payLoadData == null)? null : objectMapper.readValue(payLoadData, PartyContact.class);;
-								beforePartyContact = (beforePayLoadData == null)? null : objectMapper.readValue(beforePayLoadData.toString(), PartyContact.class);;
-
-								if (partyContact != null) { 
-									partyContact.setMobileTel(StringUtils.trim(partyContact.getMobileTel()));
-									partyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(partyContact.getEmail())));
-									if (config.sourceTablePolicyHolder.equals(tableName)
-											|| config.sourceTablePolicyHolderLog.equals(tableName)) {
-										partyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
-									} else if (config.sourceTableInsuredList.equals(tableName)
-											|| config.sourceTableInsuredListLog.equals(tableName)) {
-										partyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
-									} else if (config.sourceTableContractBene.equals(tableName)
-											|| config.sourceTableContractBeneLog.equals(tableName)) {
-										partyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
-										partyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
-									} 
-
-								}
-								if (beforePartyContact != null) { 
-									beforePartyContact.setMobileTel(StringUtils.trim(beforePartyContact.getMobileTel()));
-									beforePartyContact.setEmail(StringUtils.trim(StringUtils.lowerCase(beforePartyContact.getEmail())));
-									if (config.sourceTablePolicyHolder.equals(tableName)
-											|| config.sourceTablePolicyHolderLog.equals(tableName)) {
-										beforePartyContact.setRoleType(POLICY_HOLDER_ROLE_TYPE);
-									} else if (config.sourceTableInsuredList.equals(tableName)
-											|| config.sourceTableInsuredListLog.equals(tableName)) {
-										beforePartyContact.setRoleType(INSURED_LIST_ROLE_TYPE);
-									} else if (config.sourceTableContractBene.equals(tableName)
-											|| config.sourceTableContractBeneLog.equals(tableName)) {
-										beforePartyContact.setRoleType(CONTRACT_BENE_ROLE_TYPE);
-										beforePartyContact.setEmail(null);// 因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
-									} 
-
-								}			
-								logger.info("   >>>partyContact={}", ((partyContact == null)? null : ToStringBuilder.reflectionToString(partyContact)));
-								logger.info("   >>>beforepartyContact={}", ((beforePartyContact == null)? null : ToStringBuilder.reflectionToString(beforePartyContact)));
-
-							} 
-
-							// T 表
-							if (isTtable) {
-								// check sourceSyncTableContractMaster
-								int liabilityState = (partyContact != null)? getLiabilityState(sourceConn, partyContact.getPolicyId())
-										: getLiabilityState(sourceConn, beforePartyContact.getPolicyId());
-								logger.info("   >>>liabilityState={}", liabilityState);
-
-								if (liabilityState == 0) {
-									// do  同步(Insert/Update/Delete)
-									if ("INSERT".equals(operation)) {
-										insertPartyContact(sourceConn, sinkConn, partyContact);
-									} else if ("UPDATE".equals(operation)) {
-										if (partyContact.equals(beforePartyContact)) {
-											// ignore
-										} else {
-											updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
-										}
-									} else if ("DELETE".equals(operation)) {
-										deletePartyContact(sinkConn, beforePartyContact);
-									}
-
-								} else {
-									// ignore
-								}
-
-							} // Log 表
-							else if (isTlogtable) {
-								String lastCmtFlg = (partyContact != null)? partyContact.getLastCmtFlg()
-										: beforePartyContact.getLastCmtFlg();
-
-								// LAST_CMT_FLG ＝ ʻYʻ 同步(Insert/update)
-								if ("INSERT".equals(operation) ) {
-									if (StringUtils.equals("Y", lastCmtFlg)) {
-										insertPartyContact(sourceConn, sinkConn, partyContact);
-									}
-								} else if ("UPDATE".equals(operation)) {
-									if (StringUtils.equals("Y", lastCmtFlg)) {
-										if (partyContact.equals(beforePartyContact)) {
-											// ignore
-										} else {
-											updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
-										}	
-									} 
-									// LAST_CMT_FLG ＝ ʻNʻ 且 t_policy_change.policy_chg_status ＝2 同步 (Delete)
-									else if (StringUtils.equals("N", lastCmtFlg)) {
-										Long policyChgId = beforePartyContact.getPolicyChgId();
-										int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
-
-										// delete
-										if (policyChgStatus == 2) {
-											deletePartyContact(sinkConn, beforePartyContact);
-										} else {
-											// ignore
-										}
-									}
-								}
-							} // Address 表
-							else if (StringUtils.equals(addressTableName, tableName)) {
-								String payLoadData = payload.get("data").toString();
-								String beforePayLoadData = payload.get("before").toString();
-								Address address = (payLoadData == null)? null : objectMapper.readValue(payLoadData, Address.class);
-								Address beforeAddress = (beforePayLoadData == null)? null : objectMapper.readValue(beforePayLoadData, Address.class);
-
-								logger.info("   >>>address={}", ((address == null)? null : ToStringBuilder.reflectionToString(address)));
-								logger.info("   >>>beforeAddress={}", ((beforeAddress == null)? null : ToStringBuilder.reflectionToString(beforeAddress)));
-
-								if ("INSERT".equals(operation)) {
-									insertAddress(sinkConn, address);
-								} else if ("UPDATE".equals(operation)) {
-
-									if (address.equals(beforeAddress)) {
-										// ignore
-									} else {
-										updateAddress(sinkConn, beforeAddress, address);
-									}	
-
-								} else if ("DELETE".equals(operation)) {
-									deleteAddress(sinkConn, beforeAddress);
-								}
-							} else if (StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
-								doHealth(sinkConn, objectMapper, payload);
-							} else {
-								throw new Exception(">>> Error: no such table name:" + tableName);
-							}
-
-							sinkConn.commit();
-						} catch(Exception e) {
-							logger.error(">>>record error, message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), data);
-						} finally {
-							if (sinkConn != null) sinkConn.close();
-							if (sourceConn != null) sourceConn.close();
-						}
-					}
-					
+				} else {
+					// ignore
 				}
 
+			} // Log 表
+			else if (isTlogtable) {
+				String lastCmtFlg = (partyContact != null)? partyContact.getLastCmtFlg()
+						: beforePartyContact.getLastCmtFlg();
 
+				// LAST_CMT_FLG ＝ ʻYʻ 同步(Insert/update)
+				if ("INSERT".equals(operation) ) {
+					if (StringUtils.equals("Y", lastCmtFlg)) {
+						insertPartyContact(sourceConn, sinkConn, partyContact);
+					}
+				} else if ("UPDATE".equals(operation)) {
+					if (StringUtils.equals("Y", lastCmtFlg)) {
+						if (partyContact.equals(beforePartyContact)) {
+							// ignore
+						} else {
+							updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
+						}	
+					} 
+					// LAST_CMT_FLG ＝ ʻNʻ 且 t_policy_change.policy_chg_status ＝2 同步 (Delete)
+					else if (StringUtils.equals("N", lastCmtFlg)) {
+						Long policyChgId = beforePartyContact.getPolicyChgId();
+						int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
+
+						// delete
+						if (policyChgStatus == 2) {
+							deletePartyContact(sinkConn, beforePartyContact);
+						} else {
+							// ignore
+						}
+					}
+				}
+			} // Address 表
+			else if (StringUtils.equals(addressTableName, tableName)) {
+				String payLoadData = payload.get("data").toString();
+				String beforePayLoadData = payload.get("before").toString();
+				Address address = (payLoadData == null)? null : objectMapper.readValue(payLoadData, Address.class);
+				Address beforeAddress = (beforePayLoadData == null)? null : objectMapper.readValue(beforePayLoadData, Address.class);
+
+				logger.info("   >>>address={}", ((address == null)? null : ToStringBuilder.reflectionToString(address)));
+				logger.info("   >>>beforeAddress={}", ((beforeAddress == null)? null : ToStringBuilder.reflectionToString(beforeAddress)));
+
+				if ("INSERT".equals(operation)) {
+					insertAddress(sinkConn, address);
+				} else if ("UPDATE".equals(operation)) {
+
+					if (address.equals(beforeAddress)) {
+						// ignore
+					} else {
+						updateAddress(sinkConn, beforeAddress, address);
+					}	
+
+				} else if ("DELETE".equals(operation)) {
+					deleteAddress(sinkConn, beforeAddress);
+				}
+			} else if (StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
+				doHealth(sinkConn, objectMapper, payload);
+			} else {
+				throw new Exception(">>> Error: no such table name:" + tableName);
 			}
+
+			sinkConn.commit();
+			
 		} catch (Exception e) {
-			// ignore for shutdown 
 			logger.error(">>>Consumer error, message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 
 		} finally {
-			consumer.close();
-
-			if (sourceConnPool != null) {
+			if (sourceConn != null) {
 				try {
-					sourceConnPool.close();
-				} catch (SQLException e) {
-					logger.error(">>>sourceConnPool close error, finally message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+					sourceConn.close();
+				} catch (Exception e) {
+					logger.error(">>>sourceConn.close Error:" + ExceptionUtils.getStackTrace(e));
 				}
 			}
-			if (sinkConnPool != null) {
+			if (sinkConn != null) {
 				try {
-					sinkConnPool.close();
-				} catch (SQLException e) {
-					logger.error(">>>sinkConnPool error, finally message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+					sinkConn.close();
+				} catch (Exception e) {
+					logger.error(">>>sinkConn.close Error:" + ExceptionUtils.getStackTrace(e));
 				}
 			}
 		}
+		
 	}
-
-	public void shutdown() {
-		consumer.wakeup();
-	}
-
 	private void doHealth(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String data = payload.get("data").toString();
 		Long logminerTime = Long.valueOf(payload.get("TIMESTAMP").toString());
@@ -349,9 +280,9 @@ public class ConsumerLoop2 implements Runnable {
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setLong(1, System.currentTimeMillis());
 			pstmt.setTimestamp(2, new java.sql.Timestamp(healthSrc.getCdctime()));
-			pstmt.setString(3, "Logminer-1");
+			pstmt.setString(3, "Logminer");
 			pstmt.setTimestamp(4, new java.sql.Timestamp(logminerTime));
-			pstmt.setString(5, "pcr420669" + "-" + id);
+			pstmt.setString(5, "pcr420669");
 			pstmt.setTimestamp(6, new java.sql.Timestamp(System.currentTimeMillis()));
 
 			pstmt.executeUpdate();
@@ -361,27 +292,6 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 
-	}
-	private Integer getPolicyChangeStatus(Connection sourceConn, Long policyChgId) throws SQLException {
-		String sql = null;
-		PreparedStatement pstmt = null;
-		ResultSet rs = null;
-		Integer policyChgStatus = null;
-		try {
-			sql = "select POLICY_CHG_STATUS from " + this.sourceSyncTablePolicyChange + " where POLICY_CHG_ID = ?";
-			pstmt = sourceConn.prepareStatement(sql);
-			pstmt.setLong(1, policyChgId);
-			rs = pstmt.executeQuery();
-			while (rs.next()) {
-				policyChgStatus = rs.getInt("POLICY_CHG_STATUS");
-				break;
-			}
-		}
-		finally {
-			if (rs != null) rs.close();
-			if (pstmt != null) pstmt.close();
-		}
-		return policyChgStatus;
 	}
 	private Integer getLiabilityState(Connection sourceConn, Long policyId) throws SQLException {
 		String sql = null;
@@ -404,28 +314,6 @@ public class ConsumerLoop2 implements Runnable {
 		}
 		return liabilityState;
 	}
-	private String getSourceAddress1(Connection sourceConn, Long addressId) throws SQLException {
-		String sql = null;
-		PreparedStatement pstmt = null;
-		ResultSet rs = null;
-		String address1 = null;
-		try {
-			sql = "select ADDRESS_1 from " + this.sourceSyncTableAddress + " where ADDRESS_ID = ?";
-			pstmt = sourceConn.prepareStatement(sql);
-			pstmt.setLong(1, addressId);
-			rs = pstmt.executeQuery();
-			while (rs.next()) {
-				address1 = rs.getString("ADDRESS_1");
-				break;
-			}
-		}
-		finally {
-			if (rs != null) rs.close();
-			if (pstmt != null) pstmt.close();
-		}
-		return address1;
-	}
-
 	private void insertPartyContact(Connection sourceConn, Connection sinkConn, PartyContact partyContact) throws Exception  {
 		PreparedStatement pstmt = null;
 		try {
@@ -485,6 +373,40 @@ public class ConsumerLoop2 implements Runnable {
 		} finally {
 			if (pstmt != null) pstmt.close();
 		}
+	}
+	private String getSourceAddress1(Connection sourceConn, Long addressId) throws SQLException {
+		String sql = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		String address1 = null;
+		try {
+			sql = "select ADDRESS_1 from " + this.sourceSyncTableAddress + " where ADDRESS_ID = ?";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, addressId);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				address1 = rs.getString("ADDRESS_1");
+				break;
+			}
+		}
+		finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+		}
+		return address1;
+	}
+	private Integer getCount(Connection conn, String sql) throws SQLException {
+
+		PreparedStatement pstmt = conn.prepareStatement(sql);
+		ResultSet resultSet = pstmt.executeQuery();
+		Integer count = 0; 
+		while (resultSet.next()) {
+			count = resultSet.getInt("COUNT");
+		}
+		resultSet.close();
+		pstmt.close();
+
+		return count;
 	}
 	private void updatePartyContact(Connection sourceConn, Connection sinkConn, PartyContact partyContact, PartyContact beforePartyContact) throws Exception  {
 		PreparedStatement pstmt = null;
@@ -609,6 +531,27 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
+	private Integer getPolicyChangeStatus(Connection sourceConn, Long policyChgId) throws SQLException {
+		String sql = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		Integer policyChgStatus = null;
+		try {
+			sql = "select POLICY_CHG_STATUS from " + this.sourceSyncTablePolicyChange + " where POLICY_CHG_ID = ?";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, policyChgId);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				policyChgStatus = rs.getInt("POLICY_CHG_STATUS");
+				break;
+			}
+		}
+		finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+		}
+		return policyChgStatus;
+	}
 	private void insertAddress(Connection sinkConn, Address address) throws Exception {
 
 		String sql = null;
@@ -646,21 +589,6 @@ public class ConsumerLoop2 implements Runnable {
 		}
 
 	}
-
-	private Integer getCount(Connection conn, String sql) throws SQLException {
-
-		PreparedStatement pstmt = conn.prepareStatement(sql);
-		ResultSet resultSet = pstmt.executeQuery();
-		Integer count = 0; 
-		while (resultSet.next()) {
-			count = resultSet.getInt("COUNT");
-		}
-		resultSet.close();
-		pstmt.close();
-
-		return count;
-	}
-
 	private void updateAddress(Connection conn, Address oldAddress, Address newAddress) throws Exception  {
 
 		PreparedStatement pstmt = null;

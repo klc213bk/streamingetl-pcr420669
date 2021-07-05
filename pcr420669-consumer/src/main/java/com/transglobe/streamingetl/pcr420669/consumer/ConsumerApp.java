@@ -49,14 +49,14 @@ public class ConsumerApp {
 		sourceConnPool.setUsername(config.sourceDbUsername);
 		sourceConnPool.setPassword(config.sourceDbPassword);
 		sourceConnPool.setDriverClassName(config.sourceDbDriver);
-		sourceConnPool.setMaxTotal(NUM_CONSUMERS);
+		sourceConnPool.setMaxTotal(3);
 		
 		sinkConnPool = new BasicDataSource();
 		sinkConnPool.setUrl(config.sinkDbUrl);
 		sinkConnPool.setUsername(null);
 		sinkConnPool.setPassword(null);
 		sinkConnPool.setDriverClassName(config.sinkDbDriver);
-		sinkConnPool.setMaxTotal(NUM_CONSUMERS);
+		sinkConnPool.setMaxTotal(3);
 		
 		ExecutorService executor = Executors.newFixedThreadPool(NUM_CONSUMERS);
 
