@@ -63,7 +63,7 @@ public class ConsumerLoop3 implements Runnable {
 		props.put("key.deserializer", StringDeserializer.class.getName());
 		props.put("value.deserializer", StringDeserializer.class.getName());
 		props.put("session.timeout.ms", 60000 ); // 60 seconds
-		props.put("max.poll.records", 10 );
+		props.put("max.poll.records", 50 );
 		this.consumer = new KafkaConsumer<>(props);
 		
 		executorService = Executors.newFixedThreadPool(threadPoolSize);
