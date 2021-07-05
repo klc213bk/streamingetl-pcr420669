@@ -101,6 +101,7 @@ public class ConsumerLoop2 implements Runnable {
 			logger.info("   >>>>>>>>>>>>>>>>>>>>>>>> run ..........");
 
 			while (true) {
+				
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
 
 				if (records.count() > 0) {
@@ -114,7 +115,7 @@ public class ConsumerLoop2 implements Runnable {
 
 							logger.info("   >>> Source Connection Pool restart, try {} times", tries);
 
-							Thread.sleep(30000);
+							Thread.sleep(10000);
 						} catch (Exception e) {
 							logger.error(">>> message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 						}
@@ -127,7 +128,7 @@ public class ConsumerLoop2 implements Runnable {
 
 							logger.info("   >>> Connection Pool restart, try {} times", tries);
 
-							Thread.sleep(30000);
+							Thread.sleep(10000);
 						} catch (Exception e) {
 							logger.error(">>> message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 						}

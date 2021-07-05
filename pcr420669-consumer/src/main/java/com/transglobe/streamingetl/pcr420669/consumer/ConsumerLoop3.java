@@ -91,7 +91,7 @@ public class ConsumerLoop3 implements Runnable {
 
 							logger.info("   >>> Source Connection Pool restart, try {} times", tries);
 
-							Thread.sleep(30000);
+							Thread.sleep(10000);
 						} catch (Exception e) {
 							logger.error(">>> message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 						}
@@ -104,7 +104,7 @@ public class ConsumerLoop3 implements Runnable {
 
 							logger.info("   >>> Sink Connection Pool restart, try {} times", tries);
 
-							Thread.sleep(30000);
+							Thread.sleep(10000);
 						} catch (Exception e) {
 							logger.error(">>> message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 						}
