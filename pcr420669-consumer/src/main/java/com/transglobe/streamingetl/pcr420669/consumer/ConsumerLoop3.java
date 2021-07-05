@@ -55,7 +55,8 @@ public class ConsumerLoop3 implements Runnable {
 			String groupId,  
 			Config config,
 			BasicDataSource sourceConnPool,
-			BasicDataSource sinkConnPool) {
+			BasicDataSource sinkConnPool,
+			int threadPoolSize) {
 
 		this.config = config;
 		this.sourceConnPool = sourceConnPool;
@@ -69,7 +70,7 @@ public class ConsumerLoop3 implements Runnable {
 		props.put("value.deserializer", StringDeserializer.class.getName());
 		this.consumer = new KafkaConsumer<>(props);
 		
-		executorService = Executors.newFixedThreadPool(10);
+		executorService = Executors.newFixedThreadPool(threadPoolSize);
 	}
 
 	@Override

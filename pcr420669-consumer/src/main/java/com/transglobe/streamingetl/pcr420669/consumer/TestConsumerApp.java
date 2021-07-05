@@ -49,20 +49,20 @@ public class TestConsumerApp {
 		sourceConnPool.setUsername(config.sourceDbUsername);
 		sourceConnPool.setPassword(config.sourceDbPassword);
 		sourceConnPool.setDriverClassName(config.sourceDbDriver);
-		sourceConnPool.setMaxTotal(NUM_CONSUMERS);
+		sourceConnPool.setMaxTotal(3);
 		
 		sinkConnPool = new BasicDataSource();
 		sinkConnPool.setUrl(config.sinkDbUrl);
 		sinkConnPool.setUsername(null);
 		sinkConnPool.setPassword(null);
 		sinkConnPool.setDriverClassName(config.sinkDbDriver);
-		sinkConnPool.setMaxTotal(NUM_CONSUMERS);
+		sinkConnPool.setMaxTotal(3);
 		
 		ExecutorService executor = Executors.newFixedThreadPool(NUM_CONSUMERS);
 
-		final List<TestConsumerLoop> consumers = new ArrayList<>();
+		final List<ConsumerLoop3> consumers = new ArrayList<>();
 		for (int i = 0; i < NUM_CONSUMERS; i++) {
-			TestConsumerLoop consumer = new TestConsumerLoop((i+1), groupId, config, sourceConnPool, sinkConnPool);
+			ConsumerLoop3 consumer = new ConsumerLoop3((i+1), groupId, config, sourceConnPool, sinkConnPool, 5);
 			consumers.add(consumer);
 			executor.submit(consumer);
 		}
@@ -70,7 +70,7 @@ public class TestConsumerApp {
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 			@Override
 			public void run() {
-				for (TestConsumerLoop consumer : consumers) {
+				for (ConsumerLoop3 consumer : consumers) {
 					consumer.shutdown();
 				} 
 				executor.shutdown();

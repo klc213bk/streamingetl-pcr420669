@@ -25,17 +25,17 @@ import com.transglobe.streamingetl.pcr420669.consumer.model.StreamingEtlHealthCd
 
 public class ProcessJob implements Runnable {
 	static final Logger logger = LoggerFactory.getLogger(ProcessJob.class);
-	
+
 	private static final Integer POLICY_HOLDER_ROLE_TYPE = 1;
 	private static final Integer INSURED_LIST_ROLE_TYPE = 2;
 	private static final Integer CONTRACT_BENE_ROLE_TYPE = 3;
-	
+
 	private ConsumerRecord<String, String> record;
 	private BasicDataSource sourceConnPool;
 	private BasicDataSource sinkConnPool;
-	
+
 	private Config config;
-	
+
 	private String policyHolderTableName;
 	private String insuredListTableName;
 	private String contractBeneTableName;
@@ -49,14 +49,14 @@ public class ProcessJob implements Runnable {
 	private String sourceSyncTableAddress;
 	private String sourceSyncTableContractMaster;
 	private String sourceSyncTablePolicyChange;
-	
+
 	public ProcessJob(ConsumerRecord<String, String> record, BasicDataSource sourceConnPool
 			, BasicDataSource sinkConnPool, Config config) {
 		this.record = record;
 		this.sourceConnPool = sourceConnPool;
 		this.sinkConnPool = sinkConnPool;
 		this.config = config;
-		
+
 		streamingEtlHealthCdcTableName = config.sourceTableStreamingEtlHealthCdc;
 		policyHolderTableName = config.sourceTablePolicyHolder;
 		insuredListTableName = config.sourceTableInsuredList;
@@ -70,7 +70,7 @@ public class ProcessJob implements Runnable {
 		sourceSyncTableContractMaster = config.sourceSyncTableContractMaster;
 		sourceSyncTablePolicyChange = config.sourceSyncTablePolicyChange;
 	}
-	
+
 	@Override
 	public void run() {
 		Map<String, Object> data = new HashMap<>();
@@ -79,18 +79,18 @@ public class ProcessJob implements Runnable {
 		try {
 			sourceConn = sourceConnPool.getConnection();
 			sinkConn = sinkConnPool.getConnection();
-			
+
 			sinkConn.setAutoCommit(false);
 			data.put("partition", record.partition());
 			data.put("offset", record.offset());
 			data.put("value", record.value());
-			
+
 			ObjectMapper objectMapper = new ObjectMapper();
 			objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
 			JsonNode jsonNode = objectMapper.readTree(record.value());
 			JsonNode payload = jsonNode.get("payload");
-			
+
 			String operation = payload.get("OPERATION").asText();
 
 			String tableName = payload.get("TABLE_NAME").asText();
@@ -107,7 +107,7 @@ public class ProcessJob implements Runnable {
 					|| StringUtils.equals(contractBeneTableNameLog, tableName) ) {
 				isTlogtable = true;
 			}
-			
+
 			PartyContact partyContact = null;
 			PartyContact beforePartyContact = null;
 			if (isTtable || isTlogtable) {
@@ -239,7 +239,7 @@ public class ProcessJob implements Runnable {
 			}
 
 			sinkConn.commit();
-			
+
 		} catch (Exception e) {
 			logger.error(">>>Consumer error, message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 
@@ -259,7 +259,7 @@ public class ProcessJob implements Runnable {
 				}
 			}
 		}
-		
+
 	}
 	private void doHealth(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String data = payload.get("data").toString();
@@ -397,16 +397,25 @@ public class ProcessJob implements Runnable {
 	}
 	private Integer getCount(Connection conn, String sql) throws SQLException {
 
-		PreparedStatement pstmt = conn.prepareStatement(sql);
-		ResultSet resultSet = pstmt.executeQuery();
-		Integer count = 0; 
-		while (resultSet.next()) {
-			count = resultSet.getInt("COUNT");
-		}
-		resultSet.close();
-		pstmt.close();
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		try {
+			pstmt = conn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
+			Integer count = 0; 
+			while (rs.next()) {
+				count = rs.getInt("COUNT");
+			}
+			rs.close();
+			pstmt.close();
 
-		return count;
+			return count;
+		} finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+		}
+
+
 	}
 	private void updatePartyContact(Connection sourceConn, Connection sinkConn, PartyContact partyContact, PartyContact beforePartyContact) throws Exception  {
 		PreparedStatement pstmt = null;

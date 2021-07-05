@@ -63,7 +63,7 @@ public class TestInsertDataApp {
 				pstmt.setLong(1, listIdList.get(i));
 				pstmt.executeUpdate();
 				sourceConn.commit();
-				Thread.sleep(1000);
+				Thread.sleep(60000);
 			}
 			
 			pstmt.close();
