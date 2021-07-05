@@ -71,8 +71,11 @@ public class ConsumerLoop2 implements Runnable {
 		props.put("bootstrap.servers", config.bootstrapServers);
 		props.put("group.id", groupId);
 		props.put("client.id", groupId + "-" + id );
+		props.put("group.instance.id", groupId + "-mygid" );
 		props.put("key.deserializer", StringDeserializer.class.getName());
 		props.put("value.deserializer", StringDeserializer.class.getName());
+		props.put("session.timeout.ms", 60000 ); // 60 seconds
+		props.put("max.poll.records", 10 );
 		this.consumer = new KafkaConsumer<>(props);
 
 		streamingEtlHealthCdcTableName = config.sourceTableStreamingEtlHealthCdc;
@@ -104,7 +107,19 @@ public class ConsumerLoop2 implements Runnable {
 					//Connection sinkConn = null;
 				//Connection sourceConn = null;
 					int tries = 0;
+					while (sourceConnPool.isClosed()) {
+						tries++;
+						try {
+							sourceConnPool.restart();
 
+							logger.info("   >>> Source Connection Pool restart, try {} times", tries);
+
+							Thread.sleep(30000);
+						} catch (Exception e) {
+							logger.error(">>> message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+						}
+					}
+					tries = 0;
 					while (sinkConnPool.isClosed()) {
 						tries++;
 						try {

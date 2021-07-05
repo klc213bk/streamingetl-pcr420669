@@ -26,16 +26,10 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.transglobe.streamingetl.pcr420669.consumer.model.Address;
-import com.transglobe.streamingetl.pcr420669.consumer.model.PartyContact;
-import com.transglobe.streamingetl.pcr420669.consumer.model.StreamingEtlHealthCdc;
-
 /**
- * 
+ * (TODO)
  * Decoupling polling and processing
+ * multi-threading process 
  * @author steven
  *
  */
@@ -68,6 +62,8 @@ public class ConsumerLoop3 implements Runnable {
 		props.put("group.instance.id", groupId + "-mygid" );
 		props.put("key.deserializer", StringDeserializer.class.getName());
 		props.put("value.deserializer", StringDeserializer.class.getName());
+		props.put("session.timeout.ms", 60000 ); // 60 seconds
+		props.put("max.poll.records", 10 );
 		this.consumer = new KafkaConsumer<>(props);
 		
 		executorService = Executors.newFixedThreadPool(threadPoolSize);
