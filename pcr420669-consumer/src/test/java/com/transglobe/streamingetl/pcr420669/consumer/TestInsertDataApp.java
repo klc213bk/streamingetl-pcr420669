@@ -14,9 +14,9 @@ public class TestInsertDataApp {
 	static final Logger logger = LoggerFactory.getLogger(TestInsertDataApp.class);
 	
 	private static String DB_DRIVER = "oracle.jdbc.driver.OracleDriver";
-	private static String DB_URL = "jdbc:oracle:thin:@localhost:1521:xe";
-	private static String DB_USERNAME = "pmuser";
-	private static String DB_PASSWORD = "pmuser";
+	private static String DB_URL = "jdbc:oracle:thin:@10.67.67.63:1521:ebaouat1";
+	private static String DB_USERNAME = "ls_ebao";
+	private static String DB_PASSWORD = "ls_ebaopwd";
 
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
@@ -63,7 +63,7 @@ public class TestInsertDataApp {
 				pstmt.setLong(1, listIdList.get(i));
 				pstmt.executeUpdate();
 				sourceConn.commit();
-				Thread.sleep(60000);
+				Thread.sleep(10000);
 			}
 			
 			pstmt.close();

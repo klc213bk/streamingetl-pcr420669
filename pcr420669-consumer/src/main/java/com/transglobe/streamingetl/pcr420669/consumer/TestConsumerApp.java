@@ -60,9 +60,9 @@ public class TestConsumerApp {
 		
 		ExecutorService executor = Executors.newFixedThreadPool(NUM_CONSUMERS);
 
-		final List<ConsumerLoop3> consumers = new ArrayList<>();
+		final List<ConsumerLoop2> consumers = new ArrayList<>();
 		for (int i = 0; i < NUM_CONSUMERS; i++) {
-			ConsumerLoop3 consumer = new ConsumerLoop3((i+1), groupId, config, sourceConnPool, sinkConnPool, 5);
+			ConsumerLoop2 consumer = new ConsumerLoop2((i+1), groupId, config, sourceConnPool, sinkConnPool);
 			consumers.add(consumer);
 			executor.submit(consumer);
 		}
@@ -70,7 +70,7 @@ public class TestConsumerApp {
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 			@Override
 			public void run() {
-				for (ConsumerLoop3 consumer : consumers) {
+				for (ConsumerLoop2 consumer : consumers) {
 					consumer.shutdown();
 				} 
 				executor.shutdown();
