@@ -493,7 +493,7 @@ public class InitialLoadApp2 {
 		Statement stmt = null;
 		try {
 			stmt = conn.createStatement();
-			stmt.executeUpdate("DROP TABLE " + tableName);
+			stmt.executeUpdate("DROP TABLE IF EXISTS " + tableName);
 			stmt.close();
 		} catch (java.sql.SQLException e) {
 			logger.info(">>>  table:" + tableName + " does not exists!!!");
