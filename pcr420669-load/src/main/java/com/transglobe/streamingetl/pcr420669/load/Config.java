@@ -13,18 +13,26 @@ public class Config {
 	public String sourceDbUrl;
 	public String sourceDbUsername;
 	public String sourceDbPassword;
-	public String sinkDbDriver;
-	public String sinkDbUrl;
-
+	
 	public String sourceTablePolicyHolder;
 	public String sourceTableInsuredList;
 	public String sourceTableContractBene;
 	public String sourceTablePolicyHolderLog;
 	public String sourceTableInsuredListLog;
 	public String sourceTableContractBeneLog;
-
+	
 	public String sourceTableContractMaster;
 	public String sourceTableAddress;
+	
+	public String healthDbDriver;
+	public String healthDbUrl;
+	public String healthDbUsername;
+	public String healthDbPassword;
+	
+	public String healthTableStreamingEtlHealthCdc;
+	
+	public String sinkDbDriver;
+	public String sinkDbUrl;
 
 	public String sinkTablePartyContact;
 	public String sinkTableStreamingEtlHealth;
@@ -46,9 +54,6 @@ public class Config {
 			dbConfig.sourceDbUsername = prop.getProperty("source.db.username");
 			dbConfig.sourceDbPassword = prop.getProperty("source.db.password");
 
-			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");
-			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
-			
 			dbConfig.sourceTablePolicyHolder = prop.getProperty("source.table.policy_holder");
 			dbConfig.sourceTableInsuredList = prop.getProperty("source.table.insured_list");
 			dbConfig.sourceTableContractBene = prop.getProperty("source.table.contract_bene");
@@ -59,6 +64,16 @@ public class Config {
 			dbConfig.sourceTableContractMaster = prop.getProperty("source.table.contract_master");
 			dbConfig.sourceTableAddress = prop.getProperty("source.table.address");
 
+			dbConfig.healthDbDriver = prop.getProperty("health.db.driver");
+			dbConfig.healthDbUrl = prop.getProperty("health.db.url");
+			dbConfig.healthDbUsername = prop.getProperty("health.db.username");
+			dbConfig.healthDbPassword = prop.getProperty("health.db.password");
+			
+			dbConfig.healthTableStreamingEtlHealthCdc = prop.getProperty("health.table.streaming_etl_health_cdc");
+			
+			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");
+			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
+			
 			dbConfig.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			dbConfig.sinkTableStreamingEtlHealth = prop.getProperty("sink.table.streaming_etl_health");
 

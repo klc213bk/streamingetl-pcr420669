@@ -10,11 +10,6 @@ cd %LOGMINER_HOME%
 call mvn clean package
 call xcopy %LOGMINER_HOME%\target\*.jar %STREAMINGETL_HOME%\connectors\oracle-logminer-connector /Y
 
-echo "start to build common"
-cd %COMMON_HOME%
-call mvn clean package
-call xcopy %COMMON_HOME%\target\*.jar %APP_HOME%\lib /Y
-
 echo "start to build app"
 cd %APP_HOME%
 call mvn clean package

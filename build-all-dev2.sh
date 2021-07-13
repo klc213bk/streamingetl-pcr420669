@@ -10,12 +10,6 @@ cd ${LOGMINER_HOME}
 mvn clean package
 cp ${LOGMINER_HOME}/target/*.jar ${STREAMINGETL_HOME}/connectors/oracle-logminer-connector/
 
-echo "start to build common"
-cd ${COMMON_HOME}
-mvn clean package
-cp ${COMMON_HOME}/target/*.jar "${APP_HOME}/lib"
-cp ${COMMON_HOME}/target/*.jar "${STREAMINGETL_HOME}/lib"
-
 echo "start to build app"
 cd ${APP_HOME}
 mvn clean package
