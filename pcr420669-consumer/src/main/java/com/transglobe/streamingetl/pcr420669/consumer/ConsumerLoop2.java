@@ -542,7 +542,9 @@ public class ConsumerLoop2 implements Runnable {
 				} else {
 
 					// update without address
-					if (beforePartyContact.getAddressId().longValue() == partyContact.getAddressId().longValue()) {
+					if (beforePartyContact.getAddressId() != null 
+							&& partyContact.getAddressId() != null
+							&& beforePartyContact.getAddressId().longValue() == partyContact.getAddressId().longValue()) {
 						sql = "update " + config.sinkTablePartyContact 
 								+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?"
 								+ " where ROLE_TYPE=? and LIST_ID=?";
