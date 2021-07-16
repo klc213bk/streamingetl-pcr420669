@@ -208,38 +208,37 @@ public class InitialLoadApp2 {
 
 		Console cnsl = null;
 		Map<String, String> map = new HashMap<>();
+		Connection sourceConn = null;
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
 		try {
 
-			Connection sourceConn = this.sourceConnectionPool.getConnection();
-			Connection sinkConn = this.sinkConnectionPool.getConnection();
+			sourceConn = this.sourceConnectionPool.getConnection();
+			sinkConn = this.sinkConnectionPool.getConnection();
 
 			Statement stmt = sourceConn.createStatement();
-			ResultSet resultSet = stmt.executeQuery(sql);
+			rs = stmt.executeQuery(sql);
 
 			sinkConn.setAutoCommit(false); 
-			PreparedStatement pstmt = sinkConn.prepareStatement(
+			pstmt = sinkConn.prepareStatement(
 					"insert into " + this.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
 							+ " values (?,?,?,?,?,?,?,?,?)");
 
 			Long count = 0L;
-			while (resultSet.next()) {
+			while (rs.next()) {
 				count++;
 
-				Long listId = resultSet.getLong("LIST_ID");
-				Long policyId = resultSet.getLong("POLICY_ID");
-				String name = resultSet.getString("NAME");
-				String certiCode = resultSet.getString("CERTI_CODE");
-				String mobileTel = resultSet.getString("MOBILE_TEL");
+				Long listId = rs.getLong("LIST_ID");
+				Long policyId = rs.getLong("POLICY_ID");
+				String name = rs.getString("NAME");
+				String certiCode = rs.getString("CERTI_CODE");
+				String mobileTel = rs.getString("MOBILE_TEL");
 				//因BSD規則調整,受益人的email部份,畫面並沒有輸入t_contract_bene.email雖有值但不做比對
-				String email = (loadBean.roleType == 3)? null : resultSet.getString("EMAIL");
-				Long addressId = resultSet.getLong("ADDRESS_ID");
-				String address1 = resultSet.getString("ADDRESS_1");
+				String email = (loadBean.roleType == 3)? null : rs.getString("EMAIL");
+				Long addressId = rs.getLong("ADDRESS_ID");
+				String address1 = rs.getString("ADDRESS_1");
 
-				if (listId.longValue() == 2437872) {
-					logger.error("listid = 2437872, sql={}", sql); 
-				}
-				
-				
 				pstmt.setInt(1, loadBean.roleType);
 				pstmt.setLong(2, listId);
 				pstmt.setLong(3, policyId);
@@ -295,17 +294,13 @@ public class InitialLoadApp2 {
 			if (pstmt != null) pstmt.close();
 			if (count > 0) sinkConn.commit(); 
 
-			resultSet.close();
+			rs.close();
 			stmt.close();
 
 			sourceConn.close();
 			sinkConn.close();
 
-			//			map.put("RETURN_CODE", "0");
-			//			map.put("SQL", sourceTableName);
-			//			map.put("SINK_TABLE", config.sinkTablePartyContact);
-			//			map.put("RECORD_COUNT", String.valueOf(count));
-
+	
 		}  catch (Exception e) {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 			map.put("RETURN_CODE", "-999");
@@ -314,7 +309,40 @@ public class InitialLoadApp2 {
 			map.put("ERROR_MSG", e.getMessage());
 			map.put("STACK_TRACE", ExceptionUtils.getStackTrace(e));
 		} finally {
-
+			if (rs != null) {
+				try {
+					rs.close();
+				} catch (SQLException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			if (pstmt != null) {
+				try {
+					pstmt.close();
+				} catch (SQLException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			if (sourceConn != null) {
+				try {
+					sourceConn.close();
+				} catch (SQLException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			if (sinkConn != null) {
+				try {
+					sinkConn.close();
+				} catch (SQLException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			
+			
 		}
 		return map;
 	}
