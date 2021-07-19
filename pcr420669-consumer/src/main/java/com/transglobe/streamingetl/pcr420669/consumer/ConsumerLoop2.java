@@ -230,14 +230,18 @@ public class ConsumerLoop2 implements Runnable {
 								if (liabilityState == 0) {
 									// do  同步(Insert/Update/Delete)
 									if ("INSERT".equals(operation)) {
+										logger.info("   >>>insert ...");
 										insertPartyContact(sourceConn, sinkConn, partyContact);
 									} else if ("UPDATE".equals(operation)) {
 										if (partyContact.equals(beforePartyContact)) {
 											// ignore
+											logger.info("   >>>ignore, equal ...");
 										} else {
+											logger.info("   >>>update ...");
 											updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
 										}
 									} else if ("DELETE".equals(operation)) {
+										logger.info("   >>>delete ...");
 										deletePartyContact(sinkConn, beforePartyContact);
 									}
 
@@ -253,13 +257,16 @@ public class ConsumerLoop2 implements Runnable {
 								// LAST_CMT_FLG ＝ ʻYʻ 同步(Insert/update)
 								if ("INSERT".equals(operation) ) {
 									if (StringUtils.equals("Y", lastCmtFlg)) {
+										logger.info("   >>>insert ...");
 										insertPartyContact(sourceConn, sinkConn, partyContact);
 									}
 								} else if ("UPDATE".equals(operation)) {
 									if (StringUtils.equals("Y", lastCmtFlg)) {
 										if (partyContact.equals(beforePartyContact)) {
 											// ignore
+											logger.info("   >>>ignore, equal ...");
 										} else {
+											logger.info("   >>>update ...");
 											updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
 										}	
 									} 
@@ -267,9 +274,11 @@ public class ConsumerLoop2 implements Runnable {
 									else if (StringUtils.equals("N", lastCmtFlg)) {
 										Long policyChgId = beforePartyContact.getPolicyChgId();
 										int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
-
+										logger.info("   >>>policyChgStatus={}", policyChgStatus);
+												
 										// delete
 										if (policyChgStatus == 2) {
+											logger.info("   >>>delete ...");
 											deletePartyContact(sinkConn, beforePartyContact);
 										} else {
 											// ignore
@@ -287,16 +296,20 @@ public class ConsumerLoop2 implements Runnable {
 								logger.info("   >>>beforeAddress={}", ((beforeAddress == null)? null : ToStringBuilder.reflectionToString(beforeAddress)));
 
 								if ("INSERT".equals(operation)) {
+									logger.info("   >>>insert ...");
 									insertAddress(sinkConn, address);
 								} else if ("UPDATE".equals(operation)) {
 
 									if (address.equals(beforeAddress)) {
 										// ignore
+										logger.info("   >>>ignore, equal ...");
 									} else {
+										logger.info("   >>>update ...");
 										updateAddress(sinkConn, beforeAddress, address);
 									}	
 
 								} else if ("DELETE".equals(operation)) {
+									logger.info("   >>>delete ...");
 									deleteAddress(sinkConn, beforeAddress);
 								}
 							} else if (StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
