@@ -101,12 +101,12 @@ public class ConsumerLoop2 implements Runnable {
 			logger.info("   >>>>>>>>>>>>>>>>>>>>>>>> run ..........");
 
 			while (true) {
-				
+
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
 
 				if (records.count() > 0) {
 					//Connection sinkConn = null;
-				//Connection sourceConn = null;
+					//Connection sourceConn = null;
 					int tries = 0;
 					while (sourceConnPool.isClosed()) {
 						tries++;
@@ -134,11 +134,11 @@ public class ConsumerLoop2 implements Runnable {
 						}
 
 					}
-					
+
 
 					for (ConsumerRecord<String, String> record : records) {
 						Map<String, Object> data = new HashMap<>();
-						
+
 						Connection sourceConn = null;
 						Connection sinkConn = null;
 						try {	
@@ -275,11 +275,17 @@ public class ConsumerLoop2 implements Runnable {
 										Long policyChgId = beforePartyContact.getPolicyChgId();
 										int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
 										logger.info("   >>>policyChgStatus={}", policyChgStatus);
-												
+
 										// delete
 										if (policyChgStatus == 2) {
-											logger.info("   >>>delete ...");
-											deletePartyContact(sinkConn, beforePartyContact);
+											// check if T 表 exists
+											boolean exists = checkExists(sourceConn, beforePartyContact.getRoleType(), beforePartyContact.getListId());
+											logger.info("   >>>T 表 exists={}, role_type={}, listId={}", exists, beforePartyContact.getRoleType(), beforePartyContact.getListId());
+											
+											if (!exists) {
+												logger.info("   >>> delete ...");
+												deletePartyContact(sinkConn, beforePartyContact);
+											}
 										} else {
 											// ignore
 										}
@@ -326,7 +332,7 @@ public class ConsumerLoop2 implements Runnable {
 							if (sourceConn != null) sourceConn.close();
 						}
 					}
-					
+
 				}
 
 
@@ -390,6 +396,35 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 
+	}
+	private boolean checkExists(Connection sourceConn, Integer roleType, Long listId) throws SQLException {
+		String sql = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		boolean exists = false;
+		try {
+			String table = "";
+			if (POLICY_HOLDER_ROLE_TYPE.equals(roleType) ) {
+				table = this.policyHolderTableName;
+			} else if (INSURED_LIST_ROLE_TYPE.equals(roleType) ) {
+				table = this.insuredListTableName;
+			} if (CONTRACT_BENE_ROLE_TYPE.equals(roleType) ) {
+				table = this.contractBeneTableName;
+			}
+			sql = "select * from " + table + " where LIST_ID = ?";
+			pstmt = sourceConn.prepareStatement(sql);
+			pstmt.setLong(1, listId);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				exists = true;
+				break;
+			}
+		}
+		finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+		}
+		return exists;
 	}
 	private Integer getPolicyChangeStatus(Connection sourceConn, Long policyChgId) throws SQLException {
 		String sql = null;
