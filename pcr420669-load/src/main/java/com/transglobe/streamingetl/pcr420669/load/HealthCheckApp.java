@@ -9,8 +9,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HealthCheckApp {
+	
 	private static final String CONFIG_FILE_NAME = "config.properties";
 
 	private Config config;
@@ -26,14 +29,14 @@ public class HealthCheckApp {
 		Console console = null;
 		while (true) {
 			try {
-				Class.forName(config.healthDbDriver);
+				Class.forName(config.logminerDbDriver);
 				
-				sourceConn = DriverManager.getConnection(config.healthDbUrl, config.healthDbUsername, config.healthDbPassword);
+				sourceConn = DriverManager.getConnection(config.logminerDbUrl, config.logminerDbUsername, config.logminerDbPassword);
 
 				sourceConn.setAutoCommit(false);
 
 				long time = System.currentTimeMillis();
-				sql = "insert into " + config.healthTableStreamingEtlHealthCdc
+				sql = "insert into " + config.logminerTableStreamingEtlHealthCdc
 						+ " (cdc_time) " 
 						+ " values (?)";
 				pstmt = sourceConn.prepareStatement(sql);

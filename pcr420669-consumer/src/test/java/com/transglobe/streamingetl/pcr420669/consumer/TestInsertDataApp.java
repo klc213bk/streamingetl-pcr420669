@@ -57,8 +57,8 @@ public class TestInsertDataApp {
 					+ " (select * from test_t_policy_holder1"
 					+ " where list_id = ?)";
 			pstmt = sourceConn.prepareStatement(sql);
-			
-			for (int i = 0; i < listIdList.size(); i++) {
+			int size = 1; //listIdList.size();
+			for (int i = 0; i < size; i++) {
 				logger.info("sql={}, id={}", sql, listIdList.get(i));
 				pstmt.setLong(1, listIdList.get(i));
 				pstmt.executeUpdate();

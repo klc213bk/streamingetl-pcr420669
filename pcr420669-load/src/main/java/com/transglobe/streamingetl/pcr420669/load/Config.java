@@ -24,12 +24,13 @@ public class Config {
 	public String sourceTableContractMaster;
 	public String sourceTableAddress;
 	
-	public String healthDbDriver;
-	public String healthDbUrl;
-	public String healthDbUsername;
-	public String healthDbPassword;
+	public String logminerDbDriver;
+	public String logminerDbUrl;
+	public String logminerDbUsername;
+	public String logminerDbPassword;
 	
-	public String healthTableStreamingEtlHealthCdc;
+	public String logminerTableStreamingEtlHealthCdc;
+	public String logminerTableStreamingRegister;
 	
 	public String sinkDbDriver;
 	public String sinkDbUrl;
@@ -64,12 +65,13 @@ public class Config {
 			dbConfig.sourceTableContractMaster = prop.getProperty("source.table.contract_master");
 			dbConfig.sourceTableAddress = prop.getProperty("source.table.address");
 
-			dbConfig.healthDbDriver = prop.getProperty("health.db.driver");
-			dbConfig.healthDbUrl = prop.getProperty("health.db.url");
-			dbConfig.healthDbUsername = prop.getProperty("health.db.username");
-			dbConfig.healthDbPassword = prop.getProperty("health.db.password");
+			dbConfig.logminerDbDriver = prop.getProperty("logminer.db.driver");
+			dbConfig.logminerDbUrl = prop.getProperty("logminer.db.url");
+			dbConfig.logminerDbUsername = prop.getProperty("logminer.db.username");
+			dbConfig.logminerDbPassword = prop.getProperty("logminer.db.password");
 			
-			dbConfig.healthTableStreamingEtlHealthCdc = prop.getProperty("health.table.streaming_etl_health_cdc");
+			dbConfig.logminerTableStreamingEtlHealthCdc = prop.getProperty("logminer.table.streaming_etl_health_cdc");
+			dbConfig.logminerTableStreamingRegister = prop.getProperty("logminer.table.streaming_register");
 			
 			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");
 			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
