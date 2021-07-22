@@ -223,11 +223,11 @@ public class ConsumerLoop2 implements Runnable {
 							// T 表
 							if (isTtable) {
 								// check sourceSyncTableContractMaster
-								int liabilityState = (partyContact != null)? getLiabilityState(sourceConn, partyContact.getPolicyId())
+								Integer liabilityState = (partyContact != null)? getLiabilityState(sourceConn, partyContact.getPolicyId())
 										: getLiabilityState(sourceConn, beforePartyContact.getPolicyId());
 								logger.info("   >>>liabilityState={}", liabilityState);
 
-								if (liabilityState == 0) {
+								if (liabilityState != null && liabilityState == 0) {
 									// do  同步(Insert/Update/Delete)
 									if ("INSERT".equals(operation)) {
 										logger.info("   >>>insert ...");
