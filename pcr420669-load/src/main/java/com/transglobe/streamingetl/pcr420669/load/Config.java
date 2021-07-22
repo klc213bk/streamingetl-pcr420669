@@ -24,14 +24,6 @@ public class Config {
 	public String sourceTableContractMaster;
 	public String sourceTableAddress;
 	
-	public String logminerDbDriver;
-	public String logminerDbUrl;
-	public String logminerDbUsername;
-	public String logminerDbPassword;
-	
-	public String logminerTableStreamingEtlHealthCdc;
-	public String logminerTableStreamingRegister;
-	
 	public String sinkDbDriver;
 	public String sinkDbUrl;
 
@@ -64,15 +56,7 @@ public class Config {
 
 			dbConfig.sourceTableContractMaster = prop.getProperty("source.table.contract_master");
 			dbConfig.sourceTableAddress = prop.getProperty("source.table.address");
-
-			dbConfig.logminerDbDriver = prop.getProperty("logminer.db.driver");
-			dbConfig.logminerDbUrl = prop.getProperty("logminer.db.url");
-			dbConfig.logminerDbUsername = prop.getProperty("logminer.db.username");
-			dbConfig.logminerDbPassword = prop.getProperty("logminer.db.password");
-			
-			dbConfig.logminerTableStreamingEtlHealthCdc = prop.getProperty("logminer.table.streaming_etl_health_cdc");
-			dbConfig.logminerTableStreamingRegister = prop.getProperty("logminer.table.streaming_register");
-			
+	
 			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");
 			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
 			
