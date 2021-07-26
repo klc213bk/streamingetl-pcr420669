@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -67,8 +68,11 @@ and %tlogtable% = T_POLICY_HOLDER_LOG,T_INSURED_LIST_LOG,T_CONTRACT_BENE_LOG
 public class InitialLoadApp2 {
 	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp2.class);
 
+	private static final String MINER_NAME = "PARTY_CONTACT";
+	
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
+	private static final String CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME = "createtable-T_SUPPL_LOG_SYNC.sql";
 	private static final String CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME = "createtable-T_STREAMING_ETL_HEALTH.sql";
 	
 	private static final int THREADS = 15;
@@ -89,6 +93,7 @@ public class InitialLoadApp2 {
 	public String sourceTableAddress;
 
 	public String sinkTablePartyContact;
+	public String sinkTableSupplLogSync;
 	public String sinkTableStreamingEtlHealth;
 
 	static class LoadBean {
@@ -127,7 +132,9 @@ public class InitialLoadApp2 {
 		sourceTableAddress = config.sourceTableAddress;
 
 		sinkTablePartyContact = config.sinkTablePartyContact;
+		sinkTableSupplLogSync = config.sinkTableSupplLogSync;
 		sinkTableStreamingEtlHealth = config.sinkTableStreamingEtlHealth;
+
 	}
 	private void close() {
 		try {
@@ -156,23 +163,28 @@ public class InitialLoadApp2 {
 		logger.info(">>>>>profileActive={}", profileActive);
 		try {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
-			String createTableFile = CREATE_TABLE_FILE_NAME;
-			String createStreamingEtlHealthTableFile = CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME;
-
+			
 			InitialLoadApp2 app = new InitialLoadApp2(configFile);
-
+			
 			// create sink table
 			logger.info(">>>  Start: dropTable");
 			app.dropTable(app.sinkTablePartyContact);
+			app.dropTable(app.sinkTableSupplLogSync);
 			app.dropTable(app.sinkTableStreamingEtlHealth);
 			logger.info(">>>  End: dropTable DONE!!!");
 
 			logger.info(">>>  Start: createTable");			
-			app.createTable(app.sinkTablePartyContact, createTableFile);
-			app.createTable(app.sinkTableStreamingEtlHealth, createStreamingEtlHealthTableFile);
-			
+			app.createTable(app.sinkTablePartyContact, CREATE_TABLE_FILE_NAME);
+			app.createTable(app.sinkTableSupplLogSync, CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME);
+			app.createTable(app.sinkTableStreamingEtlHealth, CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME);
 			logger.info(">>>  End: createTable DONE!!!");
 
+			// insert  T_SUPPL_LOG_SYNC
+			logger.info(">>>  Start: insert T_SUPPL_LOG_SYNC");
+			app.insertSupplLogSync();
+			logger.info(">>>  End: insert T_SUPPL_LOG_SYNC");
+
+		
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
 
 			if (!noload) {
@@ -201,7 +213,36 @@ public class InitialLoadApp2 {
 
 	}
 
-
+	private void insertSupplLogSync() throws Exception {
+		Connection sinkConn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		String sql = "";
+		try {
+			Class.forName(config.sinkDbDriver);
+			sinkConn = DriverManager.getConnection(config.sinkDbUrl);
+			sinkConn.setAutoCommit(false);
+			
+			sql = "insert into " + config.sinkTableSupplLogSync 
+					+ " (RS_ID,SSN,INSERT_TIME) "
+					+ " values (?,?,?)";
+			
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setString(1, MINER_NAME);
+			pstmt.setLong(2, 0);
+			pstmt.setLong(3, System.currentTimeMillis());
+			
+			pstmt.executeUpdate();
+			sinkConn.commit();
+			
+			pstmt.close();
+		} finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+			if (sinkConn != null) sinkConn.close();
+			
+		}
+	}
 
 	private Map<String, String> loadPartyContact(String sql, LoadBean loadBean){
 		//		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
@@ -222,10 +263,11 @@ public class InitialLoadApp2 {
 
 			sinkConn.setAutoCommit(false); 
 			pstmt = sinkConn.prepareStatement(
-					"insert into " + this.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
-							+ " values (?,?,?,?,?,?,?,?,?)");
+					"insert into " + this.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1,INSERT_TIMESTAMP,UPDATE_TIMESTAMP) " 
+							+ " values (?,?,?,?,?,?,?,?,?,?,?)");
 
 			Long count = 0L;
+			long t = System.currentTimeMillis();
 			while (rs.next()) {
 				count++;
 
@@ -271,7 +313,9 @@ public class InitialLoadApp2 {
 				} else {
 					pstmt.setString(9, StringUtils.trim(address1));
 				}
-
+				pstmt.setTimestamp(10, new Timestamp(t));
+				pstmt.setTimestamp(11, new Timestamp(t));
+				
 				pstmt.addBatch();
 
 				if (count % 3000 == 0) {
@@ -586,6 +630,10 @@ public class InitialLoadApp2 {
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + this.sinkTablePartyContact + " (ADDRESS_1)  INLINE_SIZE 60 PARALLEL 8");
 		logger.info(">>>>> create index address span={}", (System.currentTimeMillis() - t0));
 
+		t0 = System.currentTimeMillis();
+		createIndex("CREATE INDEX IDX_PARTY_CONTACT_4 ON " + this.sinkTablePartyContact + " (ADDRESS_ID)  INLINE_SIZE 16 PARALLEL 8");
+		logger.info(">>>>> create index address span={}", (System.currentTimeMillis() - t0));
+		
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_STREAMING_ETL_HEALTH_1 ON " + this.sinkTableStreamingEtlHealth + " (CDC_TIME) PARALLEL 8");
 		logger.info(">>>>> create index streamingetlhealth cdc_time span={}", (System.currentTimeMillis() - t0));

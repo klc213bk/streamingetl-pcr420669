@@ -34,8 +34,9 @@ public class Config {
 //	public String sinkDbUsername;
 //	public String sinkDbPassword;
 	public String sinkTablePartyContact;
-	public String sinkTablePartyContactTemp;
+	public String sinkTableSupplLogSync;
 	public String sinkTableStreamingEtlHealth;
+
 	public String bootstrapServers;
 	public String groupId;
 	public List<String> topicList;
@@ -75,8 +76,9 @@ public class Config {
 //			config.sinkDbUsername = prop.getProperty("sink.db.username");
 //			config.sinkDbPassword = prop.getProperty("sink.db.password");
 			config.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
+			config.sinkTableSupplLogSync = prop.getProperty("sink.table.suppl_log_sync");
 			config.sinkTableStreamingEtlHealth=prop.getProperty("sink.table.streaming_etl_health");
-					
+		
 			config.bootstrapServers = prop.getProperty("bootstrap.servers");
 			config.groupId = prop.getProperty("group.id");
 			String[] topicArr = prop.getProperty("topics").split(",");

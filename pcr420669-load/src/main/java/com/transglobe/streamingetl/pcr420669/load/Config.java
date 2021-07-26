@@ -28,8 +28,8 @@ public class Config {
 	public String sinkDbUrl;
 
 	public String sinkTablePartyContact;
+	public String sinkTableSupplLogSync;
 	public String sinkTableStreamingEtlHealth;
-			
 
 	public static Config getConfig(String fileName) throws Exception {
 		ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -61,8 +61,9 @@ public class Config {
 			dbConfig.sinkDbUrl = prop.getProperty("sink.db.url");
 			
 			dbConfig.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
+			dbConfig.sinkTableSupplLogSync = prop.getProperty("sink.table.suppl_log_sync");
 			dbConfig.sinkTableStreamingEtlHealth = prop.getProperty("sink.table.streaming_etl_health");
-
+			
 			return dbConfig;
 		} catch (Exception e) {
 			throw e;

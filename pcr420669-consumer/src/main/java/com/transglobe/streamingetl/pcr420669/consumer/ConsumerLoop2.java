@@ -1,12 +1,17 @@
 package com.transglobe.streamingetl.pcr420669.consumer;
 
+import java.io.Console;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -30,7 +35,9 @@ import com.transglobe.streamingetl.pcr420669.consumer.model.StreamingEtlHealthCd
 
 public class ConsumerLoop2 implements Runnable {
 	static final Logger logger = LoggerFactory.getLogger(ConsumerLoop2.class);
-
+	
+	private static final String MINER_NAME = "PARTY_CONTACT";
+	
 	private static final Integer POLICY_HOLDER_ROLE_TYPE = 1;
 	private static final Integer INSURED_LIST_ROLE_TYPE = 2;
 	private static final Integer CONTRACT_BENE_ROLE_TYPE = 3;
@@ -52,7 +59,6 @@ public class ConsumerLoop2 implements Runnable {
 	private String addressTableName;
 
 	private String streamingEtlHealthCdcTableName;
-
 
 	private String sourceSyncTableAddress;
 	private String sourceSyncTableContractMaster;
@@ -105,6 +111,7 @@ public class ConsumerLoop2 implements Runnable {
 				ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
 
 				if (records.count() > 0) {
+					
 					//Connection sinkConn = null;
 					//Connection sourceConn = null;
 					int tries = 0;
@@ -141,6 +148,8 @@ public class ConsumerLoop2 implements Runnable {
 
 						Connection sourceConn = null;
 						Connection sinkConn = null;
+						PreparedStatement sinkPstmt = null;
+						ResultSet sinkRs = null;
 						try {	
 							sourceConn = sourceConnPool.getConnection();
 							sinkConn = sinkConnPool.getConnection();
@@ -158,10 +167,33 @@ public class ConsumerLoop2 implements Runnable {
 							//	payloadStr = payload.toString();
 
 							String operation = payload.get("OPERATION").asText();
-
 							String tableName = payload.get("TABLE_NAME").asText();
-							logger.info("   >>>offset={},operation={}, TableName={}", record.offset(), operation, tableName);
+							Long scn = Long.valueOf(payload.get("SCN").asText());
+							String rsId = payload.get("RS_ID").asText();
+							Long ssn = Long.valueOf(payload.get("SSN").asText());
+							logger.info("   >>>offset={},operation={}, TableName={}, scn={}, rsId={}, ssn={}", record.offset(), operation, tableName, scn, rsId, ssn);
 
+							
+							// query T_SUPPL_LOG_SYNC
+							String sql = "select * from " + config.sinkTableSupplLogSync 
+									+ " where RS_ID=? and SSN=?";
+							sinkPstmt = sinkConn.prepareStatement(sql);
+							sinkPstmt.setString(1, rsId);
+							sinkPstmt.setLong(2, scn);
+							
+							sinkRs = sinkPstmt.executeQuery();
+							boolean synExists = false;
+							while (sinkRs.next()) {
+								synExists = true;
+								break;
+							}
+							
+							if (synExists) {
+								throw new Exception(">>> Skip this record. Record could be duplicated because rsId:" + rsId + " and ssn:" + ssn + " exists.");
+							}
+							
+							// 
+							
 							boolean isTtable = false;
 							boolean isTlogtable = false;
 							if (StringUtils.equals(policyHolderTableName, tableName)
@@ -281,7 +313,7 @@ public class ConsumerLoop2 implements Runnable {
 											// check if T 表 exists
 											boolean exists = checkExists(sourceConn, beforePartyContact.getRoleType(), beforePartyContact.getListId());
 											logger.info("   >>>T 表 exists={}, role_type={}, listId={}", exists, beforePartyContact.getRoleType(), beforePartyContact.getListId());
-											
+
 											if (!exists) {
 												logger.info("   >>> delete ...");
 												deletePartyContact(sinkConn, beforePartyContact);
@@ -324,10 +356,15 @@ public class ConsumerLoop2 implements Runnable {
 								throw new Exception(">>> Error: no such table name:" + tableName);
 							}
 
+							insertSupplLogSync(sinkConn, rsId, ssn);
+							
 							sinkConn.commit();
+							
 						} catch(Exception e) {
 							logger.error(">>>record error, message={}, stack trace={}, record str={}", e.getMessage(), ExceptionUtils.getStackTrace(e), data);
 						} finally {
+							if (sinkRs != null) sinkRs.close();
+							if (sinkPstmt != null) sinkPstmt.close();
 							if (sinkConn != null) sinkConn.close();
 							if (sourceConn != null) sourceConn.close();
 						}
@@ -497,9 +534,10 @@ public class ConsumerLoop2 implements Runnable {
 					+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
 			int count = getCount(sinkConn, sql);
 			if (count == 0) {
+				long t = System.currentTimeMillis();
 				if (partyContact.getAddressId() == null) {
-					sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL) " 
-							+ " values (?,?,?,?,?,?,?)";
+					sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1,INSERT_TIMESTAMP,UPDATE_TIMESTAMP) " 
+							+ " values (?,?,?,?,?,?,?,?,?,?,?)";
 					pstmt = sinkConn.prepareStatement(sql);
 					pstmt.setInt(1, partyContact.getRoleType());
 					pstmt.setLong(2, partyContact.getListId());
@@ -512,6 +550,10 @@ public class ConsumerLoop2 implements Runnable {
 					} else {
 						pstmt.setString(7, partyContact.getEmail());
 					}
+					pstmt.setNull(8, Types.BIGINT);
+					pstmt.setNull(9, Types.VARCHAR);
+					pstmt.setTimestamp(10, new Timestamp(t));
+					pstmt.setTimestamp(11, new Timestamp(t));
 
 					pstmt.executeUpdate();
 					pstmt.close();
@@ -519,8 +561,8 @@ public class ConsumerLoop2 implements Runnable {
 					String address1 = getSourceAddress1(sourceConn, partyContact.getAddressId());
 					partyContact.setAddress1(address1);
 
-					sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1) " 
-							+ " values (?,?,?,?,?,?,?,?,?)";
+					sql = "insert into " + config.sinkTablePartyContact + " (ROLE_TYPE,LIST_ID,POLICY_ID,NAME,CERTI_CODE,MOBILE_TEL,EMAIL,ADDRESS_ID,ADDRESS_1,INSERT_TIMESTAMP,UPDATE_TIMESTAMP) " 
+							+ " values (?,?,?,?,?,?,?,?,?,?,?)";
 					pstmt = sinkConn.prepareStatement(sql);
 					pstmt.setInt(1, partyContact.getRoleType());
 					pstmt.setLong(2, partyContact.getListId());
@@ -535,6 +577,9 @@ public class ConsumerLoop2 implements Runnable {
 					} else {
 						pstmt.setString(9, partyContact.getAddress1());
 					}
+					pstmt.setTimestamp(10, new Timestamp(t));
+					pstmt.setTimestamp(11, new Timestamp(t));
+
 					pstmt.executeUpdate();
 					pstmt.close();
 				}
@@ -570,10 +615,11 @@ public class ConsumerLoop2 implements Runnable {
 			pstmt.close();
 			logger.info(">>>count={}", count);
 
+			long t = System.currentTimeMillis();
 			if (count > 0) {
 				if (partyContact.getAddressId() == null) {
 					sql = "update " + config.sinkTablePartyContact 
-							+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=null,ADDRESS_1=null"
+							+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=null,ADDRESS_1=null,UPDATE_TIMESTAMP=?"
 							+ " where ROLE_TYPE=? and LIST_ID=?";
 					pstmt = sinkConn.prepareStatement(sql);
 					pstmt.setLong(1, partyContact.getPolicyId());
@@ -581,9 +627,9 @@ public class ConsumerLoop2 implements Runnable {
 					pstmt.setString(3, partyContact.getCertiCode());
 					pstmt.setString(4, partyContact.getMobileTel());
 					pstmt.setString(5, partyContact.getEmail());
-
-					pstmt.setInt(6, partyContact.getRoleType());
-					pstmt.setLong(7, partyContact.getListId());
+					pstmt.setTimestamp(6, new Timestamp(t));
+					pstmt.setInt(7, partyContact.getRoleType());
+					pstmt.setLong(8, partyContact.getListId());
 
 					pstmt.executeUpdate();
 					pstmt.close();
@@ -594,7 +640,7 @@ public class ConsumerLoop2 implements Runnable {
 							&& partyContact.getAddressId() != null
 							&& beforePartyContact.getAddressId().longValue() == partyContact.getAddressId().longValue()) {
 						sql = "update " + config.sinkTablePartyContact 
-								+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?"
+								+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,UPDATE_TIMESTAMP=?"
 								+ " where ROLE_TYPE=? and LIST_ID=?";
 						pstmt = sinkConn.prepareStatement(sql);
 						pstmt.setLong(1, partyContact.getPolicyId());
@@ -602,9 +648,9 @@ public class ConsumerLoop2 implements Runnable {
 						pstmt.setString(3, partyContact.getCertiCode());
 						pstmt.setString(4, partyContact.getMobileTel());
 						pstmt.setString(5, partyContact.getEmail());
-
-						pstmt.setInt(6, partyContact.getRoleType());
-						pstmt.setLong(7, partyContact.getListId());
+						pstmt.setTimestamp(6, new Timestamp(t));
+						pstmt.setInt(7, partyContact.getRoleType());
+						pstmt.setLong(8, partyContact.getListId());
 
 						pstmt.executeUpdate();
 						pstmt.close();
@@ -616,7 +662,7 @@ public class ConsumerLoop2 implements Runnable {
 
 						// update 
 						sql = "update " + config.sinkTablePartyContact 
-								+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=?"
+								+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=?,ADDRESS_1=?,UPDATE_TIMESTAMP=?"
 								+ " where ROLE_TYPE=? and LIST_ID=?";
 						pstmt = sinkConn.prepareStatement(sql);
 						pstmt.setLong(1, partyContact.getPolicyId());
@@ -626,9 +672,9 @@ public class ConsumerLoop2 implements Runnable {
 						pstmt.setString(5, partyContact.getEmail());
 						pstmt.setLong(6, partyContact.getAddressId());
 						pstmt.setString(7, partyContact.getAddress1());
-
-						pstmt.setInt(8, partyContact.getRoleType());
-						pstmt.setLong(9, partyContact.getListId());
+						pstmt.setTimestamp(8, new Timestamp(t));
+						pstmt.setInt(9, partyContact.getRoleType());
+						pstmt.setLong(10, partyContact.getListId());
 
 						pstmt.executeUpdate();
 						pstmt.close();
@@ -697,11 +743,13 @@ public class ConsumerLoop2 implements Runnable {
 			if (count == 0) {
 				// ignore
 			} else {
+				long t = System.currentTimeMillis();
 				// update party contact
-				sql = "update "  + config.sinkTablePartyContact + " set address_1 = ? where address_id = ?";
+				sql = "update "  + config.sinkTablePartyContact + " set address_1 = ?,UPDATE_TIMESTAMP=? where address_id = ?";
 				pstmt = sinkConn.prepareStatement(sql);
 				pstmt.setString(1, StringUtils.trim(address.getAddress1()));
-				pstmt.setLong(2, address.getAddressId());
+				pstmt.setTimestamp(2, new Timestamp(t));
+				pstmt.setLong(3, address.getAddressId());
 				pstmt.executeUpdate();
 				pstmt.close();
 			}
@@ -732,12 +780,14 @@ public class ConsumerLoop2 implements Runnable {
 		PreparedStatement pstmt = null;
 		String sql = "";
 		try {
+			long t = System.currentTimeMillis();
 			// update PartyContact
 			sql = "update " + config.sinkTablePartyContact
-					+ " set ADDRESS_1 = ? where ADDRESS_ID = ?";
+					+ " set ADDRESS_1 = ?,UPDATE_TIMESTAMP=? where ADDRESS_ID = ?";
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setString(1, StringUtils.trim(newAddress.getAddress1()));
-			pstmt.setLong(2, oldAddress.getAddressId());
+			pstmt.setTimestamp(2, new Timestamp(t));
+			pstmt.setLong(3, oldAddress.getAddressId());
 
 			pstmt.executeUpdate();
 			pstmt.close();
@@ -752,11 +802,13 @@ public class ConsumerLoop2 implements Runnable {
 		PreparedStatement pstmt = null;
 		String sql = "";
 		try {
+			long t = System.currentTimeMillis();
 			// update PartyContact
 			sql = "update " + config.sinkTablePartyContact
-					+ " set ADDRESS_ID = null;ADDRESS_1 = null where ADDRESS_ID = ?";
+					+ " set ADDRESS_ID = null,ADDRESS_1 = null,UPDATE_TIMESTAMP=? where ADDRESS_ID = ?";
 			pstmt = sinkConn.prepareStatement(sql);
-			pstmt.setLong(1, address.getAddressId());
+			pstmt.setTimestamp(1, new Timestamp(t));
+			pstmt.setLong(2, address.getAddressId());
 
 			pstmt.executeUpdate();
 			pstmt.close();
@@ -765,4 +817,25 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
+	private void insertSupplLogSync(Connection sinkConn, String rsId, long ssn) throws Exception {
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		String sql = "";
+		try {
+			
+			sql = "insert into " + config.sinkTableSupplLogSync
+					+ " (RS_ID,SSN,INSERT_TIME) values (?,?,?)";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setString(1, rsId);
+			pstmt.setLong(2, ssn);
+			pstmt.setLong(3, System.currentTimeMillis());
+			pstmt.executeUpdate();
+			pstmt.close();
+
+		} finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+		}
+	}
+
 }
