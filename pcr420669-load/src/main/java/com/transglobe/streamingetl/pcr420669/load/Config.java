@@ -29,7 +29,7 @@ public class Config {
 
 	public String sinkTablePartyContact;
 	public String sinkTableSupplLogSync;
-	public String sinkTableStreamingEtlHealth;
+	public String sinkTableLogminerScnSink;
 
 	public static Config getConfig(String fileName) throws Exception {
 		ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -62,7 +62,7 @@ public class Config {
 			
 			dbConfig.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			dbConfig.sinkTableSupplLogSync = prop.getProperty("sink.table.suppl_log_sync");
-			dbConfig.sinkTableStreamingEtlHealth = prop.getProperty("sink.table.streaming_etl_health");
+			dbConfig.sinkTableLogminerScnSink = prop.getProperty("sink.table.logminer_scn_sink");
 			
 			return dbConfig;
 		} catch (Exception e) {

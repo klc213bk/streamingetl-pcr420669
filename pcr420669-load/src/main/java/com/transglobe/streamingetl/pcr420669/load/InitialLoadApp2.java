@@ -68,12 +68,10 @@ and %tlogtable% = T_POLICY_HOLDER_LOG,T_INSURED_LIST_LOG,T_CONTRACT_BENE_LOG
 public class InitialLoadApp2 {
 	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp2.class);
 
-	private static final String MINER_NAME = "PARTY_CONTACT";
-	
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME = "createtable-T_SUPPL_LOG_SYNC.sql";
-	private static final String CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME = "createtable-T_STREAMING_ETL_HEALTH.sql";
+	private static final String CREATE_LOGMINER_SCN_SINK_TABLE_FILE_NAME = "createtable-T_LOGMINER_SCN_SINK.sql";
 	
 	private static final int THREADS = 15;
 
@@ -94,7 +92,7 @@ public class InitialLoadApp2 {
 
 	public String sinkTablePartyContact;
 	public String sinkTableSupplLogSync;
-	public String sinkTableStreamingEtlHealth;
+	public String sinkTableLogminerScnSink;
 
 	static class LoadBean {
 		String tableName;
@@ -133,7 +131,7 @@ public class InitialLoadApp2 {
 
 		sinkTablePartyContact = config.sinkTablePartyContact;
 		sinkTableSupplLogSync = config.sinkTableSupplLogSync;
-		sinkTableStreamingEtlHealth = config.sinkTableStreamingEtlHealth;
+		sinkTableLogminerScnSink = config.sinkTableLogminerScnSink;
 
 	}
 	private void close() {
@@ -170,19 +168,19 @@ public class InitialLoadApp2 {
 			logger.info(">>>  Start: dropTable");
 			app.dropTable(app.sinkTablePartyContact);
 			app.dropTable(app.sinkTableSupplLogSync);
-			app.dropTable(app.sinkTableStreamingEtlHealth);
+			app.dropTable(app.sinkTableLogminerScnSink);
 			logger.info(">>>  End: dropTable DONE!!!");
 
 			logger.info(">>>  Start: createTable");			
 			app.createTable(app.sinkTablePartyContact, CREATE_TABLE_FILE_NAME);
 			app.createTable(app.sinkTableSupplLogSync, CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME);
-			app.createTable(app.sinkTableStreamingEtlHealth, CREATE_STREAMING_ETL_HEALTH_TABLE_FILE_NAME);
+			app.createTable(app.sinkTableLogminerScnSink, CREATE_LOGMINER_SCN_SINK_TABLE_FILE_NAME);
 			logger.info(">>>  End: createTable DONE!!!");
 
-			// insert  T_SUPPL_LOG_SYNC
-			logger.info(">>>  Start: insert T_SUPPL_LOG_SYNC");
-			app.insertSupplLogSync();
-			logger.info(">>>  End: insert T_SUPPL_LOG_SYNC");
+			// insert  T_LOGMINER_SCN
+			logger.info(">>>  Start: insert T_LOGMINER_SCN");
+//			app.insertLogminerScn();
+			logger.info(">>>  End: insert T_LOGMINER_SCN");
 
 		
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
@@ -213,36 +211,36 @@ public class InitialLoadApp2 {
 
 	}
 
-	private void insertSupplLogSync() throws Exception {
-		Connection sinkConn = null;
-		PreparedStatement pstmt = null;
-		ResultSet rs = null;
-		String sql = "";
-		try {
-			Class.forName(config.sinkDbDriver);
-			sinkConn = DriverManager.getConnection(config.sinkDbUrl);
-			sinkConn.setAutoCommit(false);
-			
-			sql = "insert into " + config.sinkTableSupplLogSync 
-					+ " (RS_ID,SSN,INSERT_TIME) "
-					+ " values (?,?,?)";
-			
-			pstmt = sinkConn.prepareStatement(sql);
-			pstmt.setString(1, MINER_NAME);
-			pstmt.setLong(2, 0);
-			pstmt.setLong(3, System.currentTimeMillis());
-			
-			pstmt.executeUpdate();
-			sinkConn.commit();
-			
-			pstmt.close();
-		} finally {
-			if (rs != null) rs.close();
-			if (pstmt != null) pstmt.close();
-			if (sinkConn != null) sinkConn.close();
-			
-		}
-	}
+//	private void insertLogminerScn() throws Exception {
+//		Connection sinkConn = null;
+//		PreparedStatement pstmt = null;
+//		ResultSet rs = null;
+//		String sql = "";
+//		try {
+//			Class.forName(config.sinkDbDriver);
+//			sinkConn = DriverManager.getConnection(config.sinkDbUrl);
+//			sinkConn.setAutoCommit(false);
+//			
+//			sql = "insert into " + config.sinkTableSupplLogSync 
+//					+ " (RS_ID,SSN,INSERT_TIME) "
+//					+ " values (?,?,?)";
+//			
+//			pstmt = sinkConn.prepareStatement(sql);
+//			pstmt.setString(1, MINER_NAME);
+//			pstmt.setLong(2, 0);
+//			pstmt.setLong(3, System.currentTimeMillis());
+//			
+//			pstmt.executeUpdate();
+//			sinkConn.commit();
+//			
+//			pstmt.close();
+//		} finally {
+//			if (rs != null) rs.close();
+//			if (pstmt != null) pstmt.close();
+//			if (sinkConn != null) sinkConn.close();
+//			
+//		}
+//	}
 
 	private Map<String, String> loadPartyContact(String sql, LoadBean loadBean){
 		//		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
@@ -635,8 +633,12 @@ public class InitialLoadApp2 {
 		logger.info(">>>>> create index address span={}", (System.currentTimeMillis() - t0));
 		
 		t0 = System.currentTimeMillis();
-		createIndex("CREATE INDEX IDX_STREAMING_ETL_HEALTH_1 ON " + this.sinkTableStreamingEtlHealth + " (CDC_TIME) PARALLEL 8");
-		logger.info(">>>>> create index streamingetlhealth cdc_time span={}", (System.currentTimeMillis() - t0));
+		createIndex("CREATE INDEX IDX_SUPPL_LOG_SYNC_1 ON " + this.sinkTableSupplLogSync + " (INSERT_TIME) PARALLEL 8");
+		logger.info(">>>>> create index IDX_SUPPL_LOG_SYNC_1 on INSERT_TIME span={}", (System.currentTimeMillis() - t0));
+		
+		t0 = System.currentTimeMillis();
+		createIndex("CREATE INDEX IDX_LOGMINER_SCN_SINK_1 ON " + this.sinkTableLogminerScnSink + " (SCN_UPDATE_TIME) PARALLEL 8");
+		logger.info(">>>>> create index IDX_LOGMINER_SCN_SINK_1 on scn_update_time span={}", (System.currentTimeMillis() - t0));
 
 		
 		/*

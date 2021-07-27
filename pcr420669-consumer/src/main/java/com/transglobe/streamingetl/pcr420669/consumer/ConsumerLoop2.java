@@ -30,8 +30,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.transglobe.streamingetl.pcr420669.consumer.model.Address;
+import com.transglobe.streamingetl.pcr420669.consumer.model.LogminerScnSink;
 import com.transglobe.streamingetl.pcr420669.consumer.model.PartyContact;
-import com.transglobe.streamingetl.pcr420669.consumer.model.StreamingEtlHealthCdc;
 
 public class ConsumerLoop2 implements Runnable {
 	static final Logger logger = LoggerFactory.getLogger(ConsumerLoop2.class);
@@ -58,8 +58,6 @@ public class ConsumerLoop2 implements Runnable {
 	private String contractBeneTableNameLog;
 	private String addressTableName;
 
-	private String streamingEtlHealthCdcTableName;
-
 	private String sourceSyncTableAddress;
 	private String sourceSyncTableContractMaster;
 	private String sourceSyncTablePolicyChange;
@@ -84,7 +82,6 @@ public class ConsumerLoop2 implements Runnable {
 		props.put("max.poll.records", 50 );
 		this.consumer = new KafkaConsumer<>(props);
 
-		streamingEtlHealthCdcTableName = config.sourceTableStreamingEtlHealthCdc;
 		policyHolderTableName = config.sourceTablePolicyHolder;
 		insuredListTableName = config.sourceTableInsuredList;
 		contractBeneTableName = config.sourceTableContractBene;
@@ -350,8 +347,8 @@ public class ConsumerLoop2 implements Runnable {
 									logger.info("   >>>delete ...");
 									deleteAddress(sinkConn, beforeAddress);
 								}
-							} else if (StringUtils.equals(streamingEtlHealthCdcTableName, tableName)) {
-								doHealth(sinkConn, objectMapper, payload);
+							} else if (StringUtils.equals(config.logminerTableLogminerScn, tableName)) {
+								doLogminerScn(sinkConn, objectMapper, payload);
 							} else {
 								throw new Exception(">>> Error: no such table name:" + tableName);
 							}
@@ -402,29 +399,28 @@ public class ConsumerLoop2 implements Runnable {
 		consumer.wakeup();
 	}
 
-	private void doHealth(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
+	private void doLogminerScn(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
 		String data = payload.get("data").toString();
-		Long logminerTime = Long.valueOf(payload.get("TIMESTAMP").toString());
-		StreamingEtlHealthCdc healthCdc = objectMapper.readValue(data, StreamingEtlHealthCdc.class);
+		LogminerScnSink logminerScnSink = objectMapper.readValue(data, LogminerScnSink.class);
 
-		insertStreamingEtlHealth(conn, healthCdc, logminerTime);
+		insertLogminerScnSink(conn, logminerScnSink);
 
 	}
-	private void insertStreamingEtlHealth(Connection conn, StreamingEtlHealthCdc healthSrc, long logminerTime) throws Exception {
+	private void insertLogminerScnSink(Connection conn, LogminerScnSink logminerScnSink) throws Exception {
 
 		String sql = null;
 		PreparedStatement pstmt = null;
 		try {
-			sql = "insert into " + config.sinkTableStreamingEtlHealth 
-					+ " (id,cdc_time,logminer_id,logminer_time,consumer_id,consumer_time) "
+			sql = "insert into " + config.sinkTableLogminerScnSink 
+					+ " (id,streaming_name,scn,scn_insert_time,scn_update_time,health_time) "
 					+ " values (?, ?, ?, ?, ? ,?)";
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setLong(1, System.currentTimeMillis());
-			pstmt.setTimestamp(2, new java.sql.Timestamp(healthSrc.getCdctime()));
-			pstmt.setString(3, "Logminer-1");
-			pstmt.setTimestamp(4, new java.sql.Timestamp(logminerTime));
-			pstmt.setString(5, "pcr420669" + "-" + id);
-			pstmt.setTimestamp(6, new java.sql.Timestamp(System.currentTimeMillis()));
+			pstmt.setString(2, logminerScnSink.getStreamingName());
+			pstmt.setLong(3, logminerScnSink.getScn());
+			pstmt.setLong(4, logminerScnSink.getScnInsertTime());
+			pstmt.setLong(5, logminerScnSink.getScnUpdateTime());
+			pstmt.setLong(6, logminerScnSink.getHealthTime());
 
 			pstmt.executeUpdate();
 			pstmt.close();

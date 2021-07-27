@@ -27,7 +27,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.transglobe.streamingetl.pcr420669.consumer.model.Address;
 import com.transglobe.streamingetl.pcr420669.consumer.model.PartyContact;
-import com.transglobe.streamingetl.pcr420669.consumer.model.StreamingEtlHealthCdc;
 
 public class TestConsumerLoop implements Runnable {
 	static final Logger logger = LoggerFactory.getLogger(TestConsumerLoop.class);

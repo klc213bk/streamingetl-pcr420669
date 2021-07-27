@@ -277,7 +277,7 @@ public class TestLogminer {
 					+ "    (OPERATION_CODE in (1,2,3) and COMMIT_SCN >= " + v_commit_scn + " and COMMIT_SCN < " + o_current_scn
 					+ "      and "
 					+ "       (seg_owner || '.' || table_name) "
-					+ "        in ('LS_EBAO.T_STREAMING_ETL_HEALTH_CDC') "
+					+ "        in ('LS_EBAO.T_LOGMINER_SCN') "
 				    + "    ) "
 				    + "    order by scn "; 
 			

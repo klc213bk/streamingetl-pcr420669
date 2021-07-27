@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 
 
@@ -18,7 +19,6 @@ public class Config {
 	public String sourceTableInsuredListLog;
 	public String sourceTableContractBeneLog;
 	public String sourceTableAddress;
-	public String sourceTableStreamingEtlHealthCdc;
 	
 	public String sourceSyncTableAddress;
 	public String sourceSyncTableContractMaster;
@@ -35,11 +35,21 @@ public class Config {
 //	public String sinkDbPassword;
 	public String sinkTablePartyContact;
 	public String sinkTableSupplLogSync;
-	public String sinkTableStreamingEtlHealth;
+	public String sinkTableLogminerScnSink;
 
+	public String logminerDbDriver;
+	public String logminerDbUrl;
+	public String logminerDbUsername;
+	public String logminerDbPassword;
+	
+	public String logminerTableLogminerScn;
+	
 	public String bootstrapServers;
 	public String groupId;
 	public List<String> topicList;
+	
+	public long cleanupPeriodMs;
+	public long cleanupSleepMs;
 	
 	public static Config getConfig(String fileName) throws Exception {
 		ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -60,8 +70,7 @@ public class Config {
 			config.sourceTableContractBeneLog = prop.getProperty("source.table.contract_bene_log");
 			
 			config.sourceTableAddress = prop.getProperty("source.table.address");
-			config.sourceTableStreamingEtlHealthCdc = prop.getProperty("source.table.streaming.etl.health.cdc");
-
+			
 			config.sourceSyncTableAddress = prop.getProperty("source.sync.table.address");
 			config.sourceSyncTableContractMaster = prop.getProperty("source.sync.table.contract_master");
 			config.sourceSyncTablePolicyChange = prop.getProperty("source.sync.table.policy_change");
@@ -77,13 +86,23 @@ public class Config {
 //			config.sinkDbPassword = prop.getProperty("sink.db.password");
 			config.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			config.sinkTableSupplLogSync = prop.getProperty("sink.table.suppl_log_sync");
-			config.sinkTableStreamingEtlHealth=prop.getProperty("sink.table.streaming_etl_health");
+			config.sinkTableLogminerScnSink=prop.getProperty("sink.table.logminer_scn_sink");
 		
+			config.logminerDbDriver = prop.getProperty("logminer.db.driver");
+			config.logminerDbUrl = prop.getProperty("logminer.db.url");
+			config.logminerDbUsername = prop.getProperty("logminer.db.username");
+			config.logminerDbPassword = prop.getProperty("logminer.db.password");
+			
+			config.logminerTableLogminerScn = prop.getProperty("logminer.table.logminer_scn");
+			
 			config.bootstrapServers = prop.getProperty("bootstrap.servers");
 			config.groupId = prop.getProperty("group.id");
 			String[] topicArr = prop.getProperty("topics").split(",");
 			config.topicList = Arrays.asList(topicArr);
 			
+			config.cleanupPeriodMs = StringUtils.isBlank(prop.getProperty("cleanup.period.ms"))? 86400000 : Long.valueOf(prop.getProperty("cleanup.period.ms"));
+			config.cleanupSleepMs = StringUtils.isBlank(prop.getProperty("cleanup.sleep.ms"))? 600000 : Long.valueOf(prop.getProperty("cleanup.sleep.ms"));
+
 			return config;
 		} catch (Exception e) {
 			throw e;

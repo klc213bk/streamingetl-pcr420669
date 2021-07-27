@@ -36,13 +36,6 @@ public class TestConsumerApp {
 		}
 
 		String groupId = config.groupId;
-//		List<String> topics = Arrays.asList(
-//				"ebao.cdc.test_t_policy_holder.0",
-//				"ebao.cdc.test_t_insured_list.0",
-//				"ebao.cdc.test_t_contract_bene.0",
-//				"ebao.cdc.test_t_address.0",
-//				"ebao.cdc.t_streaming_etl_health_cdc.0"
-//				);
 		
 		sourceConnPool = new BasicDataSource();
 		sourceConnPool.setUrl(config.sourceDbUrl);

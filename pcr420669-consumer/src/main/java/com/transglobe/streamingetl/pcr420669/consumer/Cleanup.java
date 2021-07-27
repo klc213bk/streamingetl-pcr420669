@@ -33,7 +33,7 @@ public class Cleanup implements Runnable {
 					conn.setAutoCommit(false);
 					
 					long now = System.currentTimeMillis();
-					long t = now - 10*60*1000; //t - 5 * 86400*1000;
+					long t = now - config.cleanupPeriodMs; //
 
 					sql = "delete from " + config.sinkTableSupplLogSync + " where INSERT_TIME < ?";
 
@@ -56,8 +56,8 @@ public class Cleanup implements Runnable {
 					}
 				}
 
-				logger.info(">>> Clean up sleep for 10 seconds");
-				Thread.sleep(10000);
+				logger.info(">>> Clean up sleep ");
+				Thread.sleep(config.cleanupSleepMs);
 				logger.info(">>> Clean up wake up from sleep");
 			}
 		} catch (Exception e) {
