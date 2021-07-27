@@ -1,5 +1,7 @@
 package com.transglobe.streamingetl.pcr420669.consumer.model;
 
+import java.sql.Timestamp;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class LogminerScnSink {
@@ -13,13 +15,13 @@ public class LogminerScnSink {
 	private Long scn;
 	
 	@JsonProperty("SCN_INSERT_TIME")
-	private Long scnInsertTime;
+	private Timestamp scnInsertTime;
 	
 	@JsonProperty("SCN_UPDATE_TIME")
-	private Long scnUpdateTime;
+	private Timestamp scnUpdateTime;
 	
 	@JsonProperty("HEALTH_TIME")
-	private Long healthTime;
+	private Timestamp healthTime;
 
 	public Long getId() {
 		return id;
@@ -45,27 +47,27 @@ public class LogminerScnSink {
 		this.scn = scn;
 	}
 
-	public Long getScnInsertTime() {
+	public Timestamp getScnInsertTime() {
 		return scnInsertTime;
 	}
 
-	public void setScnInsertTime(Long scnInsertTime) {
+	public void setScnInsertTime(Timestamp scnInsertTime) {
 		this.scnInsertTime = scnInsertTime;
 	}
 
-	public Long getScnUpdateTime() {
+	public Timestamp getScnUpdateTime() {
 		return scnUpdateTime;
 	}
 
-	public void setScnUpdateTime(Long scnUpdateTime) {
+	public void setScnUpdateTime(Timestamp scnUpdateTime) {
 		this.scnUpdateTime = scnUpdateTime;
 	}
 
-	public Long getHealthTime() {
+	public Timestamp getHealthTime() {
 		return healthTime;
 	}
 
-	public void setHealthTime(Long healthTime) {
+	public void setHealthTime(Timestamp healthTime) {
 		this.healthTime = healthTime;
 	}
 	

@@ -13,7 +13,7 @@ cp ${COMMON_HOME}/target/*.jar "${STREAMINGETL_HOME}/lib"
 echo "start to build logminer"
 cd ${LOGMINER_HOME}
 mvn clean package
-cp ${LOGMINER_HOME}/target/*.jar ${STREAMINGETL_HOME}/connectors/oracle-logminer-connector/
+cp ${LOGMINER_HOME}/target/*.jar ${APP_HOME}/connectors/oracle-logminer-connector/
 
 echo "start to build app"
 cd ${APP_HOME}

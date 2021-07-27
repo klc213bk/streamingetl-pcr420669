@@ -36,8 +36,6 @@ import com.transglobe.streamingetl.pcr420669.consumer.model.PartyContact;
 public class ConsumerLoop2 implements Runnable {
 	static final Logger logger = LoggerFactory.getLogger(ConsumerLoop2.class);
 	
-	private static final String MINER_NAME = "PARTY_CONTACT";
-	
 	private static final Integer POLICY_HOLDER_ROLE_TYPE = 1;
 	private static final Integer INSURED_LIST_ROLE_TYPE = 2;
 	private static final Integer CONTRACT_BENE_ROLE_TYPE = 3;
@@ -348,7 +346,12 @@ public class ConsumerLoop2 implements Runnable {
 									deleteAddress(sinkConn, beforeAddress);
 								}
 							} else if (StringUtils.equals(config.logminerTableLogminerScn, tableName)) {
-								doLogminerScn(sinkConn, objectMapper, payload);
+								String logminerScnData = payload.get("data").toString();
+								LogminerScnSink logminerScnSink = objectMapper.readValue(logminerScnData, LogminerScnSink.class);
+								logger.info("   >>>logminerScnSink={}", logminerScnSink);
+								
+								insertLogminerScnSink(sinkConn, logminerScnSink);
+							
 							} else {
 								throw new Exception(">>> Error: no such table name:" + tableName);
 							}
@@ -399,13 +402,6 @@ public class ConsumerLoop2 implements Runnable {
 		consumer.wakeup();
 	}
 
-	private void doLogminerScn(Connection conn, ObjectMapper objectMapper, JsonNode payload) throws Exception {
-		String data = payload.get("data").toString();
-		LogminerScnSink logminerScnSink = objectMapper.readValue(data, LogminerScnSink.class);
-
-		insertLogminerScnSink(conn, logminerScnSink);
-
-	}
 	private void insertLogminerScnSink(Connection conn, LogminerScnSink logminerScnSink) throws Exception {
 
 		String sql = null;
@@ -418,9 +414,9 @@ public class ConsumerLoop2 implements Runnable {
 			pstmt.setLong(1, System.currentTimeMillis());
 			pstmt.setString(2, logminerScnSink.getStreamingName());
 			pstmt.setLong(3, logminerScnSink.getScn());
-			pstmt.setLong(4, logminerScnSink.getScnInsertTime());
-			pstmt.setLong(5, logminerScnSink.getScnUpdateTime());
-			pstmt.setLong(6, logminerScnSink.getHealthTime());
+			pstmt.setTimestamp(4, logminerScnSink.getScnInsertTime());
+			pstmt.setTimestamp(5, logminerScnSink.getScnUpdateTime());
+			pstmt.setTimestamp(6, logminerScnSink.getHealthTime());
 
 			pstmt.executeUpdate();
 			pstmt.close();
@@ -818,13 +814,13 @@ public class ConsumerLoop2 implements Runnable {
 		ResultSet rs = null;
 		String sql = "";
 		try {
-			
+			long t = System.currentTimeMillis();
 			sql = "insert into " + config.sinkTableSupplLogSync
 					+ " (RS_ID,SSN,INSERT_TIME) values (?,?,?)";
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.setString(1, rsId);
 			pstmt.setLong(2, ssn);
-			pstmt.setLong(3, System.currentTimeMillis());
+			pstmt.setTimestamp(3, new Timestamp(t));
 			pstmt.executeUpdate();
 			pstmt.close();
 

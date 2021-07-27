@@ -68,6 +68,8 @@ and %tlogtable% = T_POLICY_HOLDER_LOG,T_INSURED_LIST_LOG,T_CONTRACT_BENE_LOG
 public class InitialLoadApp2 {
 	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp2.class);
 
+	private static final String STREAMING_NAME = "PartyContact";
+	
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME = "createtable-T_SUPPL_LOG_SYNC.sql";
@@ -179,7 +181,7 @@ public class InitialLoadApp2 {
 
 			// insert  T_LOGMINER_SCN
 			logger.info(">>>  Start: insert T_LOGMINER_SCN");
-//			app.insertLogminerScn();
+			app.insertLogminerScn();
 			logger.info(">>>  End: insert T_LOGMINER_SCN");
 
 		
@@ -211,36 +213,59 @@ public class InitialLoadApp2 {
 
 	}
 
-//	private void insertLogminerScn() throws Exception {
-//		Connection sinkConn = null;
-//		PreparedStatement pstmt = null;
-//		ResultSet rs = null;
-//		String sql = "";
-//		try {
-//			Class.forName(config.sinkDbDriver);
-//			sinkConn = DriverManager.getConnection(config.sinkDbUrl);
-//			sinkConn.setAutoCommit(false);
-//			
-//			sql = "insert into " + config.sinkTableSupplLogSync 
-//					+ " (RS_ID,SSN,INSERT_TIME) "
-//					+ " values (?,?,?)";
-//			
-//			pstmt = sinkConn.prepareStatement(sql);
-//			pstmt.setString(1, MINER_NAME);
-//			pstmt.setLong(2, 0);
-//			pstmt.setLong(3, System.currentTimeMillis());
-//			
-//			pstmt.executeUpdate();
-//			sinkConn.commit();
-//			
-//			pstmt.close();
-//		} finally {
-//			if (rs != null) rs.close();
-//			if (pstmt != null) pstmt.close();
-//			if (sinkConn != null) sinkConn.close();
-//			
-//		}
-//	}
+	private void insertLogminerScn() throws Exception {
+		Connection conn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		String sql = "";
+		try {
+			Class.forName(config.logminerDbDriver);
+			conn = DriverManager.getConnection(config.logminerDbUrl, config.logminerDbUsername, config.logminerDbPassword);
+			conn.setAutoCommit(false);
+		
+			sql = "delete from " + config.logminerTableLogminerScn 
+					+ " where STREAMING_NAME=?";	
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setString(1, STREAMING_NAME);
+			pstmt.executeUpdate();
+			pstmt.close();
+			
+			sql = "select CURRENT_SCN from gv$database";
+			pstmt = conn.prepareStatement(sql);
+			rs = pstmt.executeQuery();
+			Long currentScn = 0L;
+			while (rs.next()) {
+				currentScn = rs.getLong("CURRENT_SCN");
+			}
+			rs.close();
+			pstmt.close();
+			
+			long t = System.currentTimeMillis();
+			sql = "insert into " + config.logminerTableLogminerScn 
+					+ " (STREAMING_NAME,SCN,SCN_INSERT_TIME,SCN_UPDATE_TIME) "
+					+ " values (?,?,?,?)";
+			
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setString(1, STREAMING_NAME);
+			pstmt.setLong(2, currentScn);
+			pstmt.setTimestamp(3, new Timestamp(t));
+			pstmt.setTimestamp(4, new Timestamp(t));
+
+			pstmt.executeUpdate();
+			
+			conn.commit();
+			pstmt.close();
+			
+		} catch (Exception e) {
+			conn.rollback();
+			throw e;
+		} finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+			if (conn != null) conn.close();
+			
+		}
+	}
 
 	private Map<String, String> loadPartyContact(String sql, LoadBean loadBean){
 		//		logger.info(">>> run loadInterestedPartyContact, table={}, roleType={}", sourceTableName, roleType);
@@ -639,23 +664,6 @@ public class InitialLoadApp2 {
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_LOGMINER_SCN_SINK_1 ON " + this.sinkTableLogminerScnSink + " (SCN_UPDATE_TIME) PARALLEL 8");
 		logger.info(">>>>> create index IDX_LOGMINER_SCN_SINK_1 on scn_update_time span={}", (System.currentTimeMillis() - t0));
-
 		
-		/*
-		List<String> indexSqlList = new ArrayList<>();
-		indexSqlList.add("CREATE INDEX IDX_PARTY_CONTACT_1 ON " + config.sinkTablePartyContact + " (MOBILE_TEL)");
-		indexSqlList.add("CREATE INDEX IDX_PARTY_CONTACT_2 ON " + config.sinkTablePartyContact + " (EMAIL)");
-		indexSqlList.add("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + config.sinkTablePartyContact + " (ADDRESS_ID)");
-		indexSqlList.add("CREATE INDEX IDX_PARTY_CONTACT_TEMP_1 ON " + config.sinkTablePartyContactTemp + " (ADDRESS_ID)");
-		ExecutorService executor = Executors.newFixedThreadPool(THREADS);
-
-		List<CompletableFuture<Integer>> futures = 
-				indexSqlList.stream().map(t -> CompletableFuture.supplyAsync(
-						() -> createIndex(t), executor))
-				.collect(Collectors.toList());			
-
-
-		List<Integer> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
-		 */
 	}
 }
