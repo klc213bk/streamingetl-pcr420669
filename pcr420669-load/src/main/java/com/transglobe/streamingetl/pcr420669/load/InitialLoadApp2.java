@@ -68,8 +68,6 @@ and %tlogtable% = T_POLICY_HOLDER_LOG,T_INSURED_LIST_LOG,T_CONTRACT_BENE_LOG
 public class InitialLoadApp2 {
 	private static final Logger logger = LoggerFactory.getLogger(InitialLoadApp2.class);
 
-	private static final String STREAMING_NAME = "PartyContact";
-	
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME = "createtable-T_SUPPL_LOG_SYNC.sql";
@@ -224,7 +222,7 @@ public class InitialLoadApp2 {
 			sql = "delete from " + config.logminerTableLogminerScn 
 					+ " where STREAMING_NAME=?";	
 			pstmt = conn.prepareStatement(sql);
-			pstmt.setString(1, STREAMING_NAME);
+			pstmt.setString(1, config.streamingName);
 			pstmt.executeUpdate();
 			pstmt.close();
 			
@@ -244,7 +242,7 @@ public class InitialLoadApp2 {
 					+ " values (?,?,?,?)";
 			
 			pstmt = conn.prepareStatement(sql);
-			pstmt.setString(1, STREAMING_NAME);
+			pstmt.setString(1, config.streamingName);
 			pstmt.setLong(2, currentScn);
 			pstmt.setTimestamp(3, new Timestamp(t));
 			pstmt.setTimestamp(4, new Timestamp(t));

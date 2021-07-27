@@ -51,7 +51,7 @@ public class ConsumerApp {
 		sinkConnPool.setDriverClassName(config.sinkDbDriver);
 		sinkConnPool.setMaxTotal(3);
 
-		ExecutorService executor = Executors.newFixedThreadPool(NUM_CONSUMERS + 1);
+		ExecutorService executor = Executors.newFixedThreadPool(NUM_CONSUMERS + 2);
 
 		final List<ConsumerLoop2> consumers = new ArrayList<>();
 		for (int i = 0; i < NUM_CONSUMERS; i++) {
@@ -61,6 +61,9 @@ public class ConsumerApp {
 		}
 		Cleanup cleanup = new Cleanup(config);
 		executor.submit(cleanup);
+		
+		SyncScn syncScn = new SyncScn(config);
+		executor.submit(syncScn);
 
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 			@Override
@@ -70,7 +73,8 @@ public class ConsumerApp {
 				} 
 				
 				cleanup.shutdown();
-
+				syncScn.shutdown();
+				
 				try {
 					if (sourceConnPool != null) sourceConnPool.close();
 					if (sinkConnPool != null) sinkConnPool.close();

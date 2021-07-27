@@ -33,16 +33,19 @@ public class Cleanup implements Runnable {
 					conn.setAutoCommit(false);
 					
 					long now = System.currentTimeMillis();
-					long t = now - config.cleanupPeriodMs; //
+					long t = now  - config.cleanupPeriodMinute * 60 * 1000; //
+					
+					logger.info(">>> now={}, t={}", now, t);
 
-					sql = "delete from " + config.sinkTableSupplLogSync + " where EXTRACT(MILLISECONDS FROM INSERT_TIME) < ?";
+					sql = "delete from " + config.sinkTableSupplLogSync + " where INSERT_TIME < ?";
 
 					pstmt = conn.prepareStatement(sql);
 					pstmt.setLong(1, t);
 
 					pstmt.executeUpdate();
 					conn.commit();
-
+					pstmt.close();
+					
 					logger.info(">>> sinkTableSupplLogSync deleted, now={}, ID < {}", now, t);
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
@@ -57,7 +60,7 @@ public class Cleanup implements Runnable {
 				}
 
 				logger.info(">>> Clean up sleep ");
-				Thread.sleep(2 * config.cleanupPeriodMs);
+				Thread.sleep(2 * config.cleanupPeriodMinute * 60 * 1000);
 				logger.info(">>> Clean up wake up from sleep");
 			}
 		} catch (Exception e) {

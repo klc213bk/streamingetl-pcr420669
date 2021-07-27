@@ -352,9 +352,10 @@ public class ConsumerLoop2 implements Runnable {
 								throw new Exception(">>> Error: no such table name:" + tableName);
 							}
 
-							logger.info("   >>>insertSupplLogSync, rsId={}, ssn={}, scn={}", rsId, ssn, scn);
+							long t = System.currentTimeMillis();
+							logger.info("   >>>insertSupplLogSync, rsId={}, ssn={}, scn={}, time={}", rsId, ssn, scn, t);
 							sqlRedo = StringUtils.substring(sqlRedo, 0, 1000);
-							insertSupplLogSync(sinkConn, rsId, ssn, scn, sqlRedo);
+							insertSupplLogSync(sinkConn, rsId, ssn, scn, t, sqlRedo);
 							
 							sinkConn.commit();
 							
@@ -400,30 +401,6 @@ public class ConsumerLoop2 implements Runnable {
 		consumer.wakeup();
 	}
 
-	private void insertLogminerScnSink(Connection conn, LogminerScnSink logminerScnSink) throws Exception {
-
-		String sql = null;
-		PreparedStatement pstmt = null;
-		try {
-			sql = "insert into " + config.sinkTableLogminerScnSink 
-					+ " (id,streaming_name,scn,scn_insert_time,scn_update_time,health_time) "
-					+ " values (?, ?, ?, ?, ? ,?)";
-			pstmt = conn.prepareStatement(sql);
-			pstmt.setLong(1, System.currentTimeMillis());
-			pstmt.setString(2, logminerScnSink.getStreamingName());
-			pstmt.setLong(3, logminerScnSink.getScn());
-			pstmt.setTimestamp(4, logminerScnSink.getScnInsertTime());
-			pstmt.setTimestamp(5, logminerScnSink.getScnUpdateTime());
-			pstmt.setTimestamp(6, logminerScnSink.getHealthTime());
-
-			pstmt.executeUpdate();
-			pstmt.close();
-
-		} finally {
-			if (pstmt != null) pstmt.close();
-		}
-
-	}
 	private boolean checkExists(Connection sourceConn, Integer roleType, Long listId) throws SQLException {
 		String sql = null;
 		PreparedStatement pstmt = null;
@@ -807,12 +784,11 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
-	private void insertSupplLogSync(Connection sinkConn, String rsId, long ssn, long scn, String sqlRedo) throws Exception {
+	private void insertSupplLogSync(Connection sinkConn, String rsId, long ssn, long scn, long t, String sqlRedo) throws Exception {
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
 		String sql = "";
 		try {
-			long t = System.currentTimeMillis();
 			sql = "insert into " + config.sinkTableSupplLogSync
 					+ " (RS_ID,SSN,SCN,REMARK,INSERT_TIME) values (?,?,?,?,?)";
 			pstmt = sinkConn.prepareStatement(sql);
@@ -820,7 +796,7 @@ public class ConsumerLoop2 implements Runnable {
 			pstmt.setLong(2, ssn);
 			pstmt.setLong(3, scn);
 			pstmt.setString(4, sqlRedo);
-			pstmt.setTimestamp(5, new Timestamp(t));
+			pstmt.setLong(5,t);
 			pstmt.executeUpdate();
 			pstmt.close();
 

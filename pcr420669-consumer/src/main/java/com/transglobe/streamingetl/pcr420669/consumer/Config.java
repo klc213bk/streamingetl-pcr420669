@@ -43,13 +43,13 @@ public class Config {
 	public String logminerDbPassword;
 	
 	public String logminerTableLogminerScn;
+	public String streamingName;
+	public long cleanupPeriodMinute;
+	public long syncscnPeriodMinute;
 	
 	public String bootstrapServers;
 	public String groupId;
 	public List<String> topicList;
-	
-	public long cleanupPeriodMs;
-	public long cleanupSleepMs;
 	
 	public static Config getConfig(String fileName) throws Exception {
 		ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -94,15 +94,16 @@ public class Config {
 			config.logminerDbPassword = prop.getProperty("logminer.db.password");
 			
 			config.logminerTableLogminerScn = prop.getProperty("logminer.table.logminer_scn");
+			config.streamingName = prop.getProperty("streaming.name");			
+			config.cleanupPeriodMinute = StringUtils.isBlank(prop.getProperty("cleanup.period.minute"))? 3 : Long.valueOf(prop.getProperty("cleanup.period.minute"));
+			config.syncscnPeriodMinute = StringUtils.isBlank(prop.getProperty("synscn.period.minute"))? 10 : Long.valueOf(prop.getProperty("synscn.period.minute"));
 			
 			config.bootstrapServers = prop.getProperty("bootstrap.servers");
 			config.groupId = prop.getProperty("group.id");
 			String[] topicArr = prop.getProperty("topics").split(",");
 			config.topicList = Arrays.asList(topicArr);
 			
-			config.cleanupPeriodMs = StringUtils.isBlank(prop.getProperty("cleanup.period.ms"))? 86400000 : Long.valueOf(prop.getProperty("cleanup.period.ms"));
-			config.cleanupSleepMs = StringUtils.isBlank(prop.getProperty("cleanup.sleep.ms"))? 600000 : Long.valueOf(prop.getProperty("cleanup.sleep.ms"));
-
+			
 			return config;
 		} catch (Exception e) {
 			throw e;

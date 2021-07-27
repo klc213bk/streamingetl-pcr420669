@@ -37,7 +37,9 @@ public class Config {
 	public String logminerDbPassword;
 	
 	public String logminerTableLogminerScn;
-
+	
+	public String streamingName;
+	
 	public static Config getConfig(String fileName) throws Exception {
 		ClassLoader loader = Thread.currentThread().getContextClassLoader();
 
@@ -77,6 +79,8 @@ public class Config {
 			dbConfig.logminerDbPassword = prop.getProperty("logminer.db.password");
 			
 			dbConfig.logminerTableLogminerScn = prop.getProperty("logminer.table.logminer_scn");
+			
+			dbConfig.streamingName = prop.getProperty("streaming.name");
 			
 			return dbConfig;
 		} catch (Exception e) {
