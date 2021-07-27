@@ -73,7 +73,6 @@ public class InitialLoadApp2 {
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME = "createtable-T_SUPPL_LOG_SYNC.sql";
-	private static final String CREATE_LOGMINER_SCN_SINK_TABLE_FILE_NAME = "createtable-T_LOGMINER_SCN_SINK.sql";
 	
 	private static final int THREADS = 15;
 
@@ -176,7 +175,6 @@ public class InitialLoadApp2 {
 			logger.info(">>>  Start: createTable");			
 			app.createTable(app.sinkTablePartyContact, CREATE_TABLE_FILE_NAME);
 			app.createTable(app.sinkTableSupplLogSync, CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME);
-			app.createTable(app.sinkTableLogminerScnSink, CREATE_LOGMINER_SCN_SINK_TABLE_FILE_NAME);
 			logger.info(">>>  End: createTable DONE!!!");
 
 			// insert  T_LOGMINER_SCN
@@ -660,10 +658,6 @@ public class InitialLoadApp2 {
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_SUPPL_LOG_SYNC_1 ON " + this.sinkTableSupplLogSync + " (INSERT_TIME) PARALLEL 8");
 		logger.info(">>>>> create index IDX_SUPPL_LOG_SYNC_1 on INSERT_TIME span={}", (System.currentTimeMillis() - t0));
-		
-		t0 = System.currentTimeMillis();
-		createIndex("CREATE INDEX IDX_LOGMINER_SCN_SINK_1 ON " + this.sinkTableLogminerScnSink + " (SCN_UPDATE_TIME) PARALLEL 8");
-		logger.info(">>>>> create index IDX_LOGMINER_SCN_SINK_1 on scn_update_time span={}", (System.currentTimeMillis() - t0));
 		
 	}
 }

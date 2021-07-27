@@ -166,6 +166,7 @@ public class ConsumerLoop2 implements Runnable {
 							Long scn = Long.valueOf(payload.get("SCN").asText());
 							String rsId = payload.get("RS_ID").asText();
 							Long ssn = Long.valueOf(payload.get("SSN").asText());
+							String sqlRedo = payload.get("SQL_REDO").toString();
 							logger.info("   >>>offset={},operation={}, TableName={}, scn={}, rsId={}, ssn={}", record.offset(), operation, tableName, scn, rsId, ssn);
 
 							
@@ -346,17 +347,14 @@ public class ConsumerLoop2 implements Runnable {
 									deleteAddress(sinkConn, beforeAddress);
 								}
 							} else if (StringUtils.equals(config.logminerTableLogminerScn, tableName)) {
-								String logminerScnData = payload.get("data").toString();
-								LogminerScnSink logminerScnSink = objectMapper.readValue(logminerScnData, LogminerScnSink.class);
-								logger.info("   >>>logminerScnSink={}", logminerScnSink);
-								
-								insertLogminerScnSink(sinkConn, logminerScnSink);
-							
+								logger.info("   >>> operations on {}", tableName);
 							} else {
 								throw new Exception(">>> Error: no such table name:" + tableName);
 							}
 
-							insertSupplLogSync(sinkConn, rsId, ssn);
+							logger.info("   >>>insertSupplLogSync, rsId={}, ssn={}, scn={}", rsId, ssn, scn);
+							sqlRedo = StringUtils.substring(sqlRedo, 0, 1000);
+							insertSupplLogSync(sinkConn, rsId, ssn, scn, sqlRedo);
 							
 							sinkConn.commit();
 							
@@ -809,18 +807,20 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
-	private void insertSupplLogSync(Connection sinkConn, String rsId, long ssn) throws Exception {
+	private void insertSupplLogSync(Connection sinkConn, String rsId, long ssn, long scn, String sqlRedo) throws Exception {
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
 		String sql = "";
 		try {
 			long t = System.currentTimeMillis();
 			sql = "insert into " + config.sinkTableSupplLogSync
-					+ " (RS_ID,SSN,INSERT_TIME) values (?,?,?)";
+					+ " (RS_ID,SSN,SCN,REMARK,INSERT_TIME) values (?,?,?,?,?)";
 			pstmt = sinkConn.prepareStatement(sql);
 			pstmt.setString(1, rsId);
 			pstmt.setLong(2, ssn);
-			pstmt.setTimestamp(3, new Timestamp(t));
+			pstmt.setLong(3, scn);
+			pstmt.setString(4, sqlRedo);
+			pstmt.setTimestamp(5, new Timestamp(t));
 			pstmt.executeUpdate();
 			pstmt.close();
 
