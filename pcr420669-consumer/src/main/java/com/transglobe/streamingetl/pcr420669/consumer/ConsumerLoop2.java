@@ -354,8 +354,8 @@ public class ConsumerLoop2 implements Runnable {
 
 							long t = System.currentTimeMillis();
 							logger.info("   >>>insertSupplLogSync, rsId={}, ssn={}, scn={}, time={}", rsId, ssn, scn, t);
-							sqlRedo = StringUtils.substring(sqlRedo, 0, 1000);
-							insertSupplLogSync(sinkConn, rsId, ssn, scn, t, sqlRedo);
+//							sqlRedo = StringUtils.substring(sqlRedo, 0, 1000);
+							insertSupplLogSync(sinkConn, rsId, ssn, scn, t, "");
 							
 							sinkConn.commit();
 							
@@ -784,7 +784,7 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
-	private void insertSupplLogSync(Connection sinkConn, String rsId, long ssn, long scn, long t, String sqlRedo) throws Exception {
+	private void insertSupplLogSync(Connection sinkConn, String rsId, long ssn, long scn, long t, String remark) throws Exception {
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
 		String sql = "";
@@ -795,7 +795,7 @@ public class ConsumerLoop2 implements Runnable {
 			pstmt.setString(1, rsId);
 			pstmt.setLong(2, ssn);
 			pstmt.setLong(3, scn);
-			pstmt.setString(4, sqlRedo);
+			pstmt.setString(4, remark);
 			pstmt.setLong(5,t);
 			pstmt.executeUpdate();
 			pstmt.close();
