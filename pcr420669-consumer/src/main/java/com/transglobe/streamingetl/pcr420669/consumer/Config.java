@@ -96,7 +96,7 @@ public class Config {
 			config.logminerTableLogminerScn = prop.getProperty("logminer.table.logminer_scn");
 			config.streamingName = prop.getProperty("streaming.name");			
 			config.cleanupPeriodMinute = StringUtils.isBlank(prop.getProperty("cleanup.period.minute"))? 3 : Long.valueOf(prop.getProperty("cleanup.period.minute"));
-			config.syncscnPeriodMinute = StringUtils.isBlank(prop.getProperty("synscn.period.minute"))? 10 : Long.valueOf(prop.getProperty("synscn.period.minute"));
+			config.syncscnPeriodMinute = StringUtils.isBlank(prop.getProperty("syncscn.period.minute"))? 10 : Long.valueOf(prop.getProperty("syncscn.period.minute"));
 			
 			config.bootstrapServers = prop.getProperty("bootstrap.servers");
 			config.groupId = prop.getProperty("group.id");

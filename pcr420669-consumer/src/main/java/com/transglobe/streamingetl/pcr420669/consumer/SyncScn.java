@@ -30,7 +30,7 @@ public class SyncScn implements Runnable {
 		try {
 			while (true) {
 				String sql;
-
+				boolean updateScn = true;
 				try {
 					Class.forName(config.sinkDbDriver);
 					sinkConn = DriverManager.getConnection(config.sinkDbUrl);
@@ -51,6 +51,7 @@ public class SyncScn implements Runnable {
 					pstmt.close();
 					
 					if (scn == 0L) {
+						updateScn = false;
 						throw new Exception ("select no value from " + config.sinkTableSupplLogSync +", no update scn");
 					}
 					long now = System.currentTimeMillis();
@@ -72,8 +73,11 @@ public class SyncScn implements Runnable {
 
 					logger.info(">>> update {}, scn={}, now={}", config.sinkTableSupplLogSync, scn, now);
 				} catch (Exception e) {
-					// TODO Auto-generated catch block
-					logger.error(">>>message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+					if (!updateScn) {
+						logger.info(">>> message={}", e.getMessage());
+					} else {
+						logger.error(">>>message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
+					}
 				} finally {
 					try {
 						if (rs != null) rs.close();

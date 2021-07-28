@@ -60,7 +60,7 @@ public class Cleanup implements Runnable {
 				}
 
 				logger.info(">>> Clean up sleep ");
-				Thread.sleep(2 * config.cleanupPeriodMinute * 60 * 1000);
+				Thread.sleep(config.cleanupPeriodMinute * 60 * 1000);
 				logger.info(">>> Clean up wake up from sleep");
 			}
 		} catch (Exception e) {
