@@ -91,7 +91,6 @@ public class InitialLoadApp2 {
 
 	public String sinkTablePartyContact;
 	public String sinkTableSupplLogSync;
-	public String sinkTableLogminerScnSink;
 
 	static class LoadBean {
 		String tableName;
@@ -166,7 +165,6 @@ public class InitialLoadApp2 {
 			logger.info(">>>  Start: dropTable");
 			app.dropTable(app.sinkTablePartyContact);
 			app.dropTable(app.sinkTableSupplLogSync);
-			app.dropTable(app.sinkTableLogminerScnSink);
 			logger.info(">>>  End: dropTable DONE!!!");
 
 			logger.info(">>>  Start: createTable");			
