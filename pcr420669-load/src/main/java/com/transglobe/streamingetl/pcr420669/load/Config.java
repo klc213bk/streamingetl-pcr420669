@@ -29,7 +29,6 @@ public class Config {
 
 	public String sinkTablePartyContact;
 	public String sinkTableSupplLogSync;
-	public String sinkTableLogminerScnSink;
 	
 	public String logminerDbDriver;
 	public String logminerDbUrl;
@@ -71,7 +70,6 @@ public class Config {
 			
 			dbConfig.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			dbConfig.sinkTableSupplLogSync = prop.getProperty("sink.table.suppl_log_sync");
-			dbConfig.sinkTableLogminerScnSink = prop.getProperty("sink.table.logminer_scn_sink");
 			
 			dbConfig.logminerDbDriver = prop.getProperty("logminer.db.driver");
 			dbConfig.logminerDbUrl = prop.getProperty("logminer.db.url");

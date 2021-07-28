@@ -130,7 +130,6 @@ public class InitialLoadApp2 {
 
 		sinkTablePartyContact = config.sinkTablePartyContact;
 		sinkTableSupplLogSync = config.sinkTableSupplLogSync;
-		sinkTableLogminerScnSink = config.sinkTableLogminerScnSink;
 
 	}
 	private void close() {
@@ -251,6 +250,9 @@ public class InitialLoadApp2 {
 			
 			conn.commit();
 			pstmt.close();
+			
+			logger.info("insert into {} with STREAMING_NAME={}, scn={}", 
+					config.logminerTableLogminerScn, config.streamingName, currentScn);
 			
 		} catch (Exception e) {
 			conn.rollback();
