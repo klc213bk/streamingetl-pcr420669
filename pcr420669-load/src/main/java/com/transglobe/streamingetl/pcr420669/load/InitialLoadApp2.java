@@ -647,11 +647,15 @@ public class InitialLoadApp2 {
 
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_3 ON " + this.sinkTablePartyContact + " (ADDRESS_1)  INLINE_SIZE 60 PARALLEL 8");
-		logger.info(">>>>> create index address span={}", (System.currentTimeMillis() - t0));
+		logger.info(">>>>> create index address_1 span={}", (System.currentTimeMillis() - t0));
 
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_4 ON " + this.sinkTablePartyContact + " (ADDRESS_ID)  INLINE_SIZE 16 PARALLEL 8");
-		logger.info(">>>>> create index address span={}", (System.currentTimeMillis() - t0));
+		logger.info(">>>>> create index address_id span={}", (System.currentTimeMillis() - t0));
+		
+		t0 = System.currentTimeMillis();
+		createIndex("CREATE INDEX IDX_PARTY_CONTACT_5 ON " + this.sinkTablePartyContact + " (UPDATE_TIMESTAMP)  INLINE_SIZE 16 PARALLEL 8");
+		logger.info(">>>>> create index UPDATE_TIMESTAMP span={}", (System.currentTimeMillis() - t0));
 		
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_SUPPL_LOG_SYNC_1 ON " + this.sinkTableSupplLogSync + " (INSERT_TIME) PARALLEL 8");
