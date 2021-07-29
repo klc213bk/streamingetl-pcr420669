@@ -35,8 +35,6 @@ public class Cleanup implements Runnable {
 					long now = System.currentTimeMillis();
 					long t = now  - config.cleanupPeriodMinute * 60 * 1000; //
 					
-					logger.info(">>> now={}, t={}", now, t);
-
 					sql = "delete from " + config.sinkTableSupplLogSync + " where INSERT_TIME < ?";
 
 					pstmt = conn.prepareStatement(sql);
@@ -46,7 +44,7 @@ public class Cleanup implements Runnable {
 					conn.commit();
 					pstmt.close();
 					
-					logger.info(">>> sinkTableSupplLogSync deleted, now={}, ID < {}", now, t);
+					logger.info(">>> sinkTableSupplLogSync deleted, now={}, where INSERT_TIME < {}", now, t);
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
 					logger.error(">>>message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));

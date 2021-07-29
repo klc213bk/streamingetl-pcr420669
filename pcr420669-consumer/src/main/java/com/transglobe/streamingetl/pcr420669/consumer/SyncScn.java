@@ -39,13 +39,15 @@ public class SyncScn implements Runnable {
 					conn = DriverManager.getConnection(config.logminerDbUrl, config.logminerDbUsername, config.logminerDbPassword);
 					conn.setAutoCommit(false);
 					
-					sql = "select SCN from " + config.sinkTableSupplLogSync 
+					sql = "select SCN,INSERT_TIME from " + config.sinkTableSupplLogSync 
 							+ " order by INSERT_TIME desc limit 1";
 					pstmt = sinkConn.prepareStatement(sql);
 					rs = pstmt.executeQuery();
 					long scn = 0L; 
+					long insertTime = 0L;
 					while (rs.next()) {
 						scn = rs.getLong("SCN");
+						insertTime = rs.getLong("INSERT_TIME");
 					}
 					rs.close();
 					pstmt.close();
@@ -54,16 +56,13 @@ public class SyncScn implements Runnable {
 						updateScn = false;
 						throw new Exception ("select no value from " + config.sinkTableSupplLogSync +", no update scn");
 					}
-					long now = System.currentTimeMillis();
-					
-					logger.info(">>> now={}", now);
 
 					sql = "update " + config.logminerTableLogminerScn 
 							+ " set SCN=?, SCN_UPDATE_TIME=? where STREAMING_NAME=?";
 
 					pstmt = conn.prepareStatement(sql);
 					pstmt.setLong(1, scn);
-					pstmt.setTimestamp(2, new Timestamp(now));
+					pstmt.setTimestamp(2, new Timestamp(insertTime));
 					pstmt.setString(3, config.streamingName);
 					
 					pstmt.executeUpdate();
@@ -71,7 +70,7 @@ public class SyncScn implements Runnable {
 					
 					pstmt.close();
 
-					logger.info(">>> update {}, scn={}, now={}", config.sinkTableSupplLogSync, scn, now);
+					logger.info(">>> update {}, scn={}, insertTime={}, now={}", config.sinkTableSupplLogSync, scn, insertTime, System.currentTimeMillis());
 				} catch (Exception e) {
 					if (!updateScn) {
 						logger.info(">>> message={}", e.getMessage());

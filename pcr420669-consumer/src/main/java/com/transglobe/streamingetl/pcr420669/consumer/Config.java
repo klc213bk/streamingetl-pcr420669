@@ -35,7 +35,6 @@ public class Config {
 //	public String sinkDbPassword;
 	public String sinkTablePartyContact;
 	public String sinkTableSupplLogSync;
-	public String sinkTableLogminerScnSink;
 
 	public String logminerDbDriver;
 	public String logminerDbUrl;
@@ -86,8 +85,7 @@ public class Config {
 //			config.sinkDbPassword = prop.getProperty("sink.db.password");
 			config.sinkTablePartyContact = prop.getProperty("sink.table.party_contact");
 			config.sinkTableSupplLogSync = prop.getProperty("sink.table.suppl_log_sync");
-			config.sinkTableLogminerScnSink=prop.getProperty("sink.table.logminer_scn_sink");
-		
+			
 			config.logminerDbDriver = prop.getProperty("logminer.db.driver");
 			config.logminerDbUrl = prop.getProperty("logminer.db.url");
 			config.logminerDbUsername = prop.getProperty("logminer.db.username");
