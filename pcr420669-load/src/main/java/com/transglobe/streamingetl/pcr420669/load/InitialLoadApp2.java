@@ -71,14 +71,14 @@ public class InitialLoadApp2 {
 	private static final String CONFIG_FILE_NAME = "config.properties";
 	private static final String CREATE_TABLE_FILE_NAME = "createtable-T_PARTY_CONTACT.sql";
 	private static final String CREATE_SUPPLY_LOG_SYNC_TABLE_FILE_NAME = "createtable-T_SUPPL_LOG_SYNC.sql";
-	
+
 	private static final int THREADS = 15;
 
 	//	private static final long SEQ_INTERVAL = 1000000L;
 
 	private BasicDataSource sourceConnectionPool;
 	private BasicDataSource sinkConnectionPool;
-	
+
 	public String sourceTablePolicyHolder;
 	public String sourceTableInsuredList;
 	public String sourceTableContractBene;
@@ -91,6 +91,8 @@ public class InitialLoadApp2 {
 
 	public String sinkTablePartyContact;
 	public String sinkTableSupplLogSync;
+
+	private long currentScn = 0L;
 
 	static class LoadBean {
 		String tableName;
@@ -158,9 +160,9 @@ public class InitialLoadApp2 {
 		logger.info(">>>>>profileActive={}", profileActive);
 		try {
 			String configFile = StringUtils.isBlank(profileActive)? CONFIG_FILE_NAME : profileActive + "/" + CONFIG_FILE_NAME;
-			
+
 			InitialLoadApp2 app = new InitialLoadApp2(configFile);
-			
+
 			// create sink table
 			logger.info(">>>  Start: dropTable");
 			app.dropTable(app.sinkTablePartyContact);
@@ -177,7 +179,11 @@ public class InitialLoadApp2 {
 			app.insertLogminerScn();
 			logger.info(">>>  End: insert T_LOGMINER_SCN");
 
-		
+			// insert  sink T_SUPPL_LOG_SYNC
+			logger.info(">>>  Start: insert T_SUPPL_LOG_SYNC");
+			app.insertSupplLogSync();
+			logger.info(">>>  End: insert T_SUPPL_LOG_SYNC");
+
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
 
 			if (!noload) {
@@ -215,43 +221,44 @@ public class InitialLoadApp2 {
 			Class.forName(config.logminerDbDriver);
 			conn = DriverManager.getConnection(config.logminerDbUrl, config.logminerDbUsername, config.logminerDbPassword);
 			conn.setAutoCommit(false);
-		
+
 			sql = "delete from " + config.logminerTableLogminerScn 
 					+ " where STREAMING_NAME=?";	
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setString(1, config.streamingName);
 			pstmt.executeUpdate();
 			pstmt.close();
-			
+
 			sql = "select CURRENT_SCN from gv$database";
 			pstmt = conn.prepareStatement(sql);
 			rs = pstmt.executeQuery();
-			Long currentScn = 0L;
 			while (rs.next()) {
 				currentScn = rs.getLong("CURRENT_SCN");
 			}
 			rs.close();
 			pstmt.close();
-			
+
 			long t = System.currentTimeMillis();
 			sql = "insert into " + config.logminerTableLogminerScn 
-					+ " (STREAMING_NAME,SCN,SCN_INSERT_TIME,SCN_UPDATE_TIME) "
-					+ " values (?,?,?,?)";
-			
+					+ " (STREAMING_NAME,PREV_SCN,SCN,SCN_INSERT_TIME,SCN_UPDATE_TIME) "
+					+ " values (?,?,?,?,?)";
+
+			long prevScn = 0L;
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setString(1, config.streamingName);
-			pstmt.setLong(2, currentScn);
-			pstmt.setTimestamp(3, new Timestamp(t));
+			pstmt.setLong(2, prevScn);
+			pstmt.setLong(3, currentScn);
 			pstmt.setTimestamp(4, new Timestamp(t));
+			pstmt.setTimestamp(5, new Timestamp(t));
 
 			pstmt.executeUpdate();
-			
+
 			conn.commit();
 			pstmt.close();
-			
-			logger.info("insert into {} with STREAMING_NAME={}, scn={}", 
-					config.logminerTableLogminerScn, config.streamingName, currentScn);
-			
+
+			logger.info("insert into {} with STREAMING_NAME={}, prevscn={}, scn={}", 
+					config.logminerTableLogminerScn, config.streamingName, prevScn, currentScn);
+
 		} catch (Exception e) {
 			conn.rollback();
 			throw e;
@@ -259,7 +266,49 @@ public class InitialLoadApp2 {
 			if (rs != null) rs.close();
 			if (pstmt != null) pstmt.close();
 			if (conn != null) conn.close();
-			
+
+		}
+	}
+	private void insertSupplLogSync() throws Exception {
+		Connection conn = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		String sql = "";
+		try {
+			Class.forName(config.sinkDbDriver);
+			conn = DriverManager.getConnection(config.sinkDbUrl);
+			conn.setAutoCommit(false);
+
+			long t = System.currentTimeMillis();
+			sql = "insert into " + config.sinkTableSupplLogSync 
+					+ " (RS_ID, SSN, SCN, REMARK, INSERT_TIME) "
+					+ " values (?,?,?,?,?)";
+
+			String rsId = "RS_ID-" + "Start";
+			Long ssn = 0L;
+			pstmt = conn.prepareStatement(sql);
+			pstmt.setString(1, "RS_ID-" + "Start");
+			pstmt.setLong(2, ssn);
+			pstmt.setLong(3, currentScn);
+			pstmt.setString(4, null);
+			pstmt.setLong(5, t);
+
+			pstmt.executeUpdate();
+
+			conn.commit();
+			pstmt.close();
+
+			logger.info("insert into {} with RS_ID={}, SSN={}, scn={}, INSERT_TIME", 
+					config.sinkTableSupplLogSync, rsId, ssn, currentScn, t);
+
+		} catch (Exception e) {
+			conn.rollback();
+			throw e;
+		} finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+			if (conn != null) conn.close();
+
 		}
 	}
 
@@ -334,7 +383,7 @@ public class InitialLoadApp2 {
 				}
 				pstmt.setTimestamp(10, new Timestamp(t));
 				pstmt.setTimestamp(11, new Timestamp(t));
-				
+
 				pstmt.addBatch();
 
 				if (count % 3000 == 0) {
@@ -363,7 +412,7 @@ public class InitialLoadApp2 {
 			sourceConn.close();
 			sinkConn.close();
 
-	
+
 		}  catch (Exception e) {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 			map.put("RETURN_CODE", "-999");
@@ -404,8 +453,8 @@ public class InitialLoadApp2 {
 					e.printStackTrace();
 				}
 			}
-			
-			
+
+
 		}
 		return map;
 	}
@@ -434,9 +483,9 @@ public class InitialLoadApp2 {
 					roleType = 3;
 				}
 				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " + table;
-				
-//				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " 
-//				+ table + " where list_id >= 31000000";
+
+				//				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " 
+				//				+ table + " where list_id >= 31000000";
 				pstmt = sourceConn.prepareStatement(sql);
 				rs = pstmt.executeQuery();
 				long maxListId = 0;
@@ -474,13 +523,13 @@ public class InitialLoadApp2 {
 				List<CompletableFuture<Map<String, String>>> futures = 
 						loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
 								() -> {
-										String sqlStr = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,c.ADDRESS_1 from " 
+									String sqlStr = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,c.ADDRESS_1 from " 
 											+ t.tableName 
 											+ " a inner join " + this.sourceTableContractMaster + " b ON a.POLICY_ID=b.POLICY_ID "
 											+ " left join " + this.sourceTableAddress + " c on a.address_id = c.address_id "
 											+ " where b.LIABILITY_STATE = 0 and " + t.startSeq + " <= a.list_id and a.list_id < " + t.endSeq ;
-										return loadPartyContact(sqlStr, t);
-									}
+									return loadPartyContact(sqlStr, t);
+								}
 								, executor)
 								)
 						.collect(Collectors.toList());			
@@ -519,9 +568,9 @@ public class InitialLoadApp2 {
 					roleType = 3;
 				}
 				sql = "select min(log_id) as MIN_LOG_ID, max(log_id) as MAX_LOG_ID from " + table;
-				
-//				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " 
-//				+ table + " where list_id >= 31000000";
+
+				//				sql = "select min(list_id) as MIN_LIST_ID, max(list_id) as MAX_LIST_ID from " 
+				//				+ table + " where list_id >= 31000000";
 				pstmt = sourceConn.prepareStatement(sql);
 				rs = pstmt.executeQuery();
 				long maxLogId = 0;
@@ -559,12 +608,12 @@ public class InitialLoadApp2 {
 				List<CompletableFuture<Map<String, String>>> futures = 
 						loadBeanList.stream().map(t -> CompletableFuture.supplyAsync(
 								() -> {
-										String sqlStr = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,c.ADDRESS_1 from " 
+									String sqlStr = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,c.ADDRESS_1 from " 
 											+ t.tableName 
 											+ " a left join " + this.sourceTableAddress + " c on a.address_id = c.address_id "
 											+ " where a.LAST_CMT_FLG = 'Y' and " + t.startSeq + " <= a.log_id and a.log_id < " + t.endSeq ;
-										return loadPartyContact(sqlStr, t);
-									}
+									return loadPartyContact(sqlStr, t);
+								}
 								, executor)
 								)
 						.collect(Collectors.toList());			
@@ -652,14 +701,14 @@ public class InitialLoadApp2 {
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_4 ON " + this.sinkTablePartyContact + " (ADDRESS_ID)  INLINE_SIZE 16 PARALLEL 8");
 		logger.info(">>>>> create index address_id span={}", (System.currentTimeMillis() - t0));
-		
+
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_PARTY_CONTACT_5 ON " + this.sinkTablePartyContact + " (UPDATE_TIMESTAMP)  INLINE_SIZE 16 PARALLEL 8");
 		logger.info(">>>>> create index UPDATE_TIMESTAMP span={}", (System.currentTimeMillis() - t0));
-		
+
 		t0 = System.currentTimeMillis();
 		createIndex("CREATE INDEX IDX_SUPPL_LOG_SYNC_1 ON " + this.sinkTableSupplLogSync + " (INSERT_TIME) PARALLEL 8");
 		logger.info(">>>>> create index IDX_SUPPL_LOG_SYNC_1 on INSERT_TIME span={}", (System.currentTimeMillis() - t0));
-		
+
 	}
 }

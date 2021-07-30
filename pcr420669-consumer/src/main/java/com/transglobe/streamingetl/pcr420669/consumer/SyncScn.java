@@ -57,13 +57,26 @@ public class SyncScn implements Runnable {
 						throw new Exception ("select no value from " + config.sinkTableSupplLogSync +", no update scn");
 					}
 
+					// get prev scn
+					sql = "select SCN from " + config.logminerTableLogminerScn + " where STREAMING_NAME=? for update";
+					pstmt = conn.prepareStatement(sql);
+					pstmt.setString(1, config.streamingName);
+					rs = pstmt.executeQuery();
+					long prevScn = 0L;
+					while (rs.next()) {
+						prevScn = rs.getLong("SCN");
+					}
+					rs.close();
+					pstmt.close();
+					
 					sql = "update " + config.logminerTableLogminerScn 
-							+ " set SCN=?, SCN_UPDATE_TIME=? where STREAMING_NAME=?";
+							+ " set PREV_SCN=?, SCN=?, SCN_UPDATE_TIME=? where STREAMING_NAME=?";
 
 					pstmt = conn.prepareStatement(sql);
-					pstmt.setLong(1, scn);
-					pstmt.setTimestamp(2, new Timestamp(insertTime));
-					pstmt.setString(3, config.streamingName);
+					pstmt.setLong(1, prevScn);
+					pstmt.setLong(2, scn);
+					pstmt.setTimestamp(3, new Timestamp(insertTime));
+					pstmt.setString(4, config.streamingName);
 					
 					pstmt.executeUpdate();
 					conn.commit();
