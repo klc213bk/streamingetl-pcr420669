@@ -83,7 +83,7 @@ public class SyncScn implements Runnable {
 					
 					pstmt.close();
 
-					logger.info(">>> update {}, scn={}, insertTime={}, now={}", config.sinkTableSupplLogSync, scn, insertTime, System.currentTimeMillis());
+					logger.info(">>> update {}, prevsc{},scn={}, insertTime={}, now={}", config.logminerTableLogminerScn, prevScn, scn, insertTime, System.currentTimeMillis());
 				} catch (Exception e) {
 					if (!updateScn) {
 						logger.info(">>> message={}", e.getMessage());
