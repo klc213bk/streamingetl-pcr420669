@@ -92,8 +92,6 @@ public class InitialLoadApp2 {
 	public String sinkTablePartyContact;
 	public String sinkTableSupplLogSync;
 
-	private long currentScn = 0L;
-
 	static class LoadBean {
 		String tableName;
 		Integer roleType;
@@ -176,12 +174,12 @@ public class InitialLoadApp2 {
 
 			// insert  T_LOGMINER_SCN
 			logger.info(">>>  Start: insert T_LOGMINER_SCN");
-			app.insertLogminerScn();
+			long currentScn = app.insertLogminerScn();
 			logger.info(">>>  End: insert T_LOGMINER_SCN");
 
 			// insert  sink T_SUPPL_LOG_SYNC
 			logger.info(">>>  Start: insert T_SUPPL_LOG_SYNC");
-			app.insertSupplLogSync();
+			app.deleteAndInsertSupplLogSync(currentScn);
 			logger.info(">>>  End: insert T_SUPPL_LOG_SYNC");
 
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
@@ -212,11 +210,12 @@ public class InitialLoadApp2 {
 
 	}
 
-	private void insertLogminerScn() throws Exception {
+	private long insertLogminerScn() throws Exception {
 		Connection conn = null;
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
 		String sql = "";
+		long currentScn = 0L;
 		try {
 			Class.forName(config.logminerDbDriver);
 			conn = DriverManager.getConnection(config.logminerDbUrl, config.logminerDbUsername, config.logminerDbPassword);
@@ -268,8 +267,9 @@ public class InitialLoadApp2 {
 			if (conn != null) conn.close();
 
 		}
+		return currentScn;
 	}
-	private void insertSupplLogSync() throws Exception {
+	private void deleteAndInsertSupplLogSync(Long currentScn) throws Exception {
 		Connection conn = null;
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
