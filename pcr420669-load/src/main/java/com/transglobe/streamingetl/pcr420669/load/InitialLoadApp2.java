@@ -174,12 +174,12 @@ public class InitialLoadApp2 {
 
 			// insert  T_LOGMINER_SCN
 			logger.info(">>>  Start: insert T_LOGMINER_SCN");
-			long currentScn = app.insertLogminerScn();
+			long currentScn = app.deleteAndInsertLogminerScn();
 			logger.info(">>>  End: insert T_LOGMINER_SCN");
 
 			// insert  sink T_SUPPL_LOG_SYNC
 			logger.info(">>>  Start: insert T_SUPPL_LOG_SYNC");
-			app.deleteAndInsertSupplLogSync(currentScn);
+			app.insertSupplLogSync(currentScn);
 			logger.info(">>>  End: insert T_SUPPL_LOG_SYNC");
 
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
@@ -210,7 +210,7 @@ public class InitialLoadApp2 {
 
 	}
 
-	private long insertLogminerScn() throws Exception {
+	private long deleteAndInsertLogminerScn() throws Exception {
 		Connection conn = null;
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
@@ -269,7 +269,7 @@ public class InitialLoadApp2 {
 		}
 		return currentScn;
 	}
-	private void deleteAndInsertSupplLogSync(Long currentScn) throws Exception {
+	private void insertSupplLogSync(Long currentScn) throws Exception {
 		Connection conn = null;
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
