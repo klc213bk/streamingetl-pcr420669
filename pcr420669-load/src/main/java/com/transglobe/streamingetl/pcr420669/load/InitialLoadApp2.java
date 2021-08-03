@@ -284,7 +284,7 @@ public class InitialLoadApp2 {
 					+ " (RS_ID, SSN, SCN, REMARK, INSERT_TIME) "
 					+ " values (?,?,?,?,?)";
 
-			String rsId = "RS_ID-" + "Start";
+			String rsId = "RS_ID-" + "01";
 			Long ssn = 0L;
 			pstmt = conn.prepareStatement(sql);
 			pstmt.setString(1, "RS_ID-" + "Start");
