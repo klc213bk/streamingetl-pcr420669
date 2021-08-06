@@ -179,7 +179,7 @@ public class InitialLoadApp2 {
 
 			// insert  sink T_SUPPL_LOG_SYNC
 			logger.info(">>>  Start: insert T_SUPPL_LOG_SYNC");
-			app.insertSupplLogSync(currentScn);
+//			app.insertSupplLogSync(currentScn);
 			logger.info(">>>  End: insert T_SUPPL_LOG_SYNC");
 
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
@@ -281,25 +281,22 @@ public class InitialLoadApp2 {
 
 			long t = System.currentTimeMillis();
 			sql = "insert into " + config.sinkTableSupplLogSync 
-					+ " (RS_ID, SSN, SCN, REMARK, INSERT_TIME) "
-					+ " values (?,?,?,?,?)";
+					+ " (SCN, CDC_TIME, REMARK, INSERT_TIME) "
+					+ " values (?,?,?,?)";
 
-			String rsId = "RS_ID-" + "01";
-			Long ssn = 0L;
 			pstmt = conn.prepareStatement(sql);
-			pstmt.setString(1, "RS_ID-" + "Start");
-			pstmt.setLong(2, ssn);
-			pstmt.setLong(3, currentScn);
-			pstmt.setString(4, null);
-			pstmt.setLong(5, t);
+			pstmt.setLong(1, currentScn);
+			pstmt.setLong(2, 0);
+			pstmt.setString(3, null);
+			pstmt.setLong(4, t);
 
 			pstmt.executeUpdate();
 
 			conn.commit();
 			pstmt.close();
 
-			logger.info("insert into {} with RS_ID={}, SSN={}, scn={}, INSERT_TIME", 
-					config.sinkTableSupplLogSync, rsId, ssn, currentScn, t);
+			logger.info("insert into {} with scn={}, INSERT_TIME={}", 
+					config.sinkTableSupplLogSync, currentScn, t);
 
 		} catch (Exception e) {
 			conn.rollback();
