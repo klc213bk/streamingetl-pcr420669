@@ -39,6 +39,8 @@ import org.apache.ignite.Ignition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.transglobe.streamingetl.common.util.OracleUtils;
+
 /**
  * InitialLoadApp [loaddata]
  *  dataload rule
@@ -173,13 +175,13 @@ public class InitialLoadApp2 {
 			logger.info(">>>  End: createTable DONE!!!");
 
 			// insert  T_LOGMINER_SCN
-			logger.info(">>>  Start: insert T_LOGMINER_SCN");
-			long currentScn = app.deleteAndInsertLogminerScn();
-			logger.info(">>>  End: insert T_LOGMINER_SCN");
+//			logger.info(">>>  Start: insert T_LOGMINER_SCN");
+//			long currentScn = app.deleteAndInsertLogminerScn();
+//			logger.info(">>>  End: insert T_LOGMINER_SCN");
 
 			// insert  sink T_SUPPL_LOG_SYNC
 			logger.info(">>>  Start: insert T_SUPPL_LOG_SYNC");
-//			app.insertSupplLogSync(currentScn);
+			app.insertSupplLogSync();
 			logger.info(">>>  End: insert T_SUPPL_LOG_SYNC");
 
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
@@ -210,7 +212,22 @@ public class InitialLoadApp2 {
 		}
 
 	}
+	private Long getCurentrScn() throws Exception {
+		Connection conn = null;
+		long currentScn = 0L;
+		try {
+			Class.forName(config.logminerDbDriver);
+			conn = DriverManager.getConnection(config.logminerDbUrl, config.logminerDbUsername, config.logminerDbPassword);
+			
+			currentScn = OracleUtils.getCurentrScn(conn);
+		} catch (Exception e) {
+			throw e;
+		} finally {
+			if (conn != null) conn.close();
 
+		}
+		return currentScn;
+	}
 	private long deleteAndInsertLogminerScn() throws Exception {
 		Connection conn = null;
 		PreparedStatement pstmt = null;
@@ -229,14 +246,7 @@ public class InitialLoadApp2 {
 			pstmt.executeUpdate();
 			pstmt.close();
 
-			sql = "select CURRENT_SCN from gv$database";
-			pstmt = conn.prepareStatement(sql);
-			rs = pstmt.executeQuery();
-			while (rs.next()) {
-				currentScn = rs.getLong("CURRENT_SCN");
-			}
-			rs.close();
-			pstmt.close();
+			currentScn = getCurentrScn();
 
 			long t = System.currentTimeMillis();
 			sql = "insert into " + config.logminerTableLogminerScn 
@@ -270,26 +280,30 @@ public class InitialLoadApp2 {
 		}
 		return currentScn;
 	}
-	private void insertSupplLogSync(Long currentScn) throws Exception {
+	private void insertSupplLogSync() throws Exception {
 		Connection conn = null;
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
 		String sql = "";
 		try {
+			
 			Class.forName(config.sinkDbDriver);
 			conn = DriverManager.getConnection(config.sinkDbUrl);
 			conn.setAutoCommit(false);
 
+			Long currentScn = getCurentrScn();
+			
 			long t = System.currentTimeMillis();
 			sql = "insert into " + config.sinkTableSupplLogSync 
-					+ " (SCN, CDC_TIME, REMARK, INSERT_TIME) "
-					+ " values (?,?,?,?)";
+					+ " (RS_ID, SSN, SCN, REMARK, INSERT_TIME) "
+					+ " values (?,?,?,?,?)";
 
 			pstmt = conn.prepareStatement(sql);
-			pstmt.setLong(1, currentScn);
-			pstmt.setLong(2, 0);
-			pstmt.setString(3, null);
-			pstmt.setLong(4, t);
+			pstmt.setString(1, "RS-ID");
+			pstmt.setLong(2, 0L);
+			pstmt.setLong(3, currentScn);
+			pstmt.setString(4, null);
+			pstmt.setLong(5, t);
 
 			pstmt.executeUpdate();
 

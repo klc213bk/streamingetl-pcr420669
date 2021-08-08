@@ -8,8 +8,9 @@ STREAMINGETL_HOME=/home/steven/gitrepo/transglobe/streamingetl
 
 echo "start to build common"
 cd ${COMMON_HOME}
-mvn clean package
+mvn clean install
 cp ${COMMON_HOME}/target/*.jar "${STREAMINGETL_HOME}/lib"
+cp ${COMMON_HOME}/target/*.jar "${APP_HOME}/lib"
 
 echo "start to build logminer"
 cd ${LOGMINER_HOME}
