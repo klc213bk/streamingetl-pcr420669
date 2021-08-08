@@ -184,12 +184,13 @@ public class InitialLoadApp2 {
 
 			logger.info("init tables span={}, ", (System.currentTimeMillis() - t0));						
 
+			long totalCount = 0L;
 			if (!noload) {
-				app.run();
+				totalCount = totalCount + app.run();
 
-				app.runTLog();
+				totalCount = totalCount + app.runTLog();
 			}
-			logger.info("run load data span={}, ", (System.currentTimeMillis() - t0));
+			logger.info("run load data span={}, records={}", (System.currentTimeMillis() - t0), totalCount);
 
 			// create indexes
 			app.runCreateIndexes();
@@ -409,7 +410,7 @@ public class InitialLoadApp2 {
 			sourceConn.close();
 			sinkConn.close();
 
-
+			map.put("COUNT", String.valueOf(count));
 		}  catch (Exception e) {
 			logger.error("message={}, stack trace={}", e.getMessage(), ExceptionUtils.getStackTrace(e));
 			map.put("RETURN_CODE", "-999");
@@ -455,13 +456,14 @@ public class InitialLoadApp2 {
 		}
 		return map;
 	}
-	private void run() throws Exception {
+	private long run() throws Exception {
 
 		ExecutorService executor = Executors.newFixedThreadPool(THREADS);
 
 		String sql = null;
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
+		long count = 0L;
 		try {
 
 			Connection sourceConn = this.sourceConnectionPool.getConnection();
@@ -533,20 +535,24 @@ public class InitialLoadApp2 {
 
 				List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
 
+				for (Map<String, String> map : result) {
+					count = count + Long.valueOf(map.get("COUNT"));
+				}
 			}
-
+			return count;
 		} finally {
 			if (executor != null) executor.shutdown();
 
 		}
 	}
-	private void runTLog() throws Exception {
+	private long runTLog() throws Exception {
 
 		ExecutorService executor = Executors.newFixedThreadPool(THREADS);
 
 		String sql = null;
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
+		long count = 0L;
 		try {
 
 			Connection sourceConn = this.sourceConnectionPool.getConnection();
@@ -617,8 +623,11 @@ public class InitialLoadApp2 {
 
 				List<Map<String, String>> result = futures.stream().map(CompletableFuture::join).collect(Collectors.toList());
 
+				for (Map<String, String> map : result) {
+					count = count + Long.valueOf(map.get("COUNT"));
+				}
 			}
-
+			return count;
 		} finally {
 			if (executor != null) executor.shutdown();
 
