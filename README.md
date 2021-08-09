@@ -5,10 +5,6 @@
 	
 2. start ignite server
   	$./start-ignite.sh
-(Edit OracleSourceConnector.properties
-reset.offset=false
-start.scn= (get the consumer logged scn )	
-)
   	
 3. Initial load data (Optional only for reload data)
 	$./start-initialload.sh  	
@@ -18,4 +14,7 @@ start.scn= (get the consumer logged scn )
  	
 5. start logminer
 	$ ./start-logminer.sh 	 	
-  	
+(Edit OracleSourceConnector.properties
+reset.offset=false
+start.scn= (get the consumer logged scn )	
+)  	

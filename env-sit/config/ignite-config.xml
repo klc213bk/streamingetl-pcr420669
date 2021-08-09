@@ -90,7 +90,7 @@
 	        </bean>
 	    </property>
 
-		<property name="workDirectory" value="/home/kafka/streamingetl-pcr420669/work"/>		
+		<property name="workDirectory" value="/home/kafka/partycontact-sit/streamingetl-pcr420669/work"/>		
 		<property name="dataStorageConfiguration">
 			<bean class="org.apache.ignite.configuration.DataStorageConfiguration">
 				<property name="walMode" value="NONE"/>

@@ -3,6 +3,7 @@ package com.transglobe.streamingetl.pcr420669.consumer;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
@@ -15,7 +16,8 @@ public class Cleanup implements Runnable {
 
 	Connection conn = null;
 	PreparedStatement pstmt = null;
-	
+	ResultSet rs = null;
+
 	public Cleanup(Config config) {
 		this.config = config;
 	}
@@ -31,19 +33,33 @@ public class Cleanup implements Runnable {
 					Class.forName(config.sinkDbDriver);
 					conn = DriverManager.getConnection(config.sinkDbUrl);
 					conn.setAutoCommit(false);
-					
+
 					long now = System.currentTimeMillis();
 					long t = now  - config.cleanupPeriodMinute * 60 * 1000; //
-					
-					sql = "delete from " + config.sinkTableSupplLogSync + " where INSERT_TIME < ?";
 
+					sql = "select count(*) as CNT from " + config.sinkTableSupplLogSync + " where INSERT_TIME >= ?";
 					pstmt = conn.prepareStatement(sql);
 					pstmt.setLong(1, t);
-
-					pstmt.executeUpdate();
-					conn.commit();
+					rs = pstmt.executeQuery();
+					int cnt = 0;
+					while (rs.next()) {
+						rs.getInt("CNT");
+					}
+					rs.close();
 					pstmt.close();
-					
+
+					if (cnt > 100) {
+
+						sql = "delete from " + config.sinkTableSupplLogSync + " where INSERT_TIME < ?";
+
+						pstmt = conn.prepareStatement(sql);
+						pstmt.setLong(1, t);
+
+						pstmt.executeUpdate();
+						conn.commit();
+						pstmt.close();
+					}
+
 					logger.info(">>> sinkTableSupplLogSync deleted, now={}, where INSERT_TIME < {}", now, t);
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
@@ -71,6 +87,7 @@ public class Cleanup implements Runnable {
 	public void shutdown() {
 		logger.info(">>> Cleanup shutdown!!!");
 		try {
+			if (rs != null) rs.close();
 			if (pstmt != null) pstmt.close();
 			if (conn != null) conn.close();
 		} catch (Exception e) {

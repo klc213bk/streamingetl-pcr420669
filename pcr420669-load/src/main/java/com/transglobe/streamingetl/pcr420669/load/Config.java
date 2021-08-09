@@ -22,6 +22,7 @@ public class Config {
 	public String sourceTableContractBeneLog;
 	
 	public String sourceTableContractMaster;
+	public String sourceTablePolicyChange;
 	public String sourceTableAddress;
 	
 	public String sinkDbDriver;
@@ -63,6 +64,7 @@ public class Config {
 			dbConfig.sourceTableContractBeneLog = prop.getProperty("source.table.contract_bene_log");
 
 			dbConfig.sourceTableContractMaster = prop.getProperty("source.table.contract_master");
+			dbConfig.sourceTablePolicyChange = prop.getProperty("source.table.policy_change");
 			dbConfig.sourceTableAddress = prop.getProperty("source.table.address");
 	
 			dbConfig.sinkDbDriver = prop.getProperty("sink.db.driver");

@@ -126,9 +126,6 @@ public class InitialLoadApp2 {
 		sourceTableInsuredListLog = config.sourceTableInsuredListLog;
 		sourceTableContractBeneLog = config.sourceTableContractBeneLog;
 
-		sourceTableContractMaster = config.sourceTableContractMaster;
-		sourceTableAddress = config.sourceTableAddress;
-
 		sinkTablePartyContact = config.sinkTablePartyContact;
 		sinkTableSupplLogSync = config.sinkTableSupplLogSync;
 
@@ -538,8 +535,8 @@ public class InitialLoadApp2 {
 								() -> {
 									String sqlStr = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,c.ADDRESS_1 from " 
 											+ t.tableName 
-											+ " a inner join " + this.sourceTableContractMaster + " b ON a.POLICY_ID=b.POLICY_ID "
-											+ " left join " + this.sourceTableAddress + " c on a.address_id = c.address_id "
+											+ " a inner join " + this.config.sourceTableContractMaster + " b ON a.POLICY_ID=b.POLICY_ID "
+											+ " left join " + this.config.sourceTableAddress + " c on a.address_id = c.address_id "
 											+ " where b.LIABILITY_STATE = 0 and " + t.startSeq + " <= a.list_id and a.list_id < " + t.endSeq ;
 									return loadPartyContact(sqlStr, t);
 								}
@@ -627,8 +624,9 @@ public class InitialLoadApp2 {
 								() -> {
 									String sqlStr = "select a.LIST_ID,a.POLICY_ID,a.NAME,a.CERTI_CODE,a.MOBILE_TEL,a.EMAIL,a.ADDRESS_ID,c.ADDRESS_1 from " 
 											+ t.tableName 
-											+ " a left join " + this.sourceTableAddress + " c on a.address_id = c.address_id "
-											+ " where a.LAST_CMT_FLG = 'Y' and " + t.startSeq + " <= a.log_id and a.log_id < " + t.endSeq ;
+											+ " a inner join " + this.config.sourceTablePolicyChange + " b ON a.POLICY_CHG_ID=b.POLICY_CHG_ID "
+											+ " left join " + this.config.sourceTableAddress + " c on a.address_id = c.address_id "
+											+ " where a.LAST_CMT_FLG = 'Y' and b.POLICY_CHG_STATUS = 2 and " + t.startSeq + " <= a.log_id and a.log_id < " + t.endSeq ;
 									return loadPartyContact(sqlStr, t);
 								}
 								, executor)

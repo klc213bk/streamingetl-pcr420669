@@ -281,63 +281,43 @@ public class ConsumerLoop2 implements Runnable {
 							else if (isTlogtable) {
 								String lastCmtFlg = (partyContact != null)? partyContact.getLastCmtFlg()
 										: beforePartyContact.getLastCmtFlg();
-
-								// LAST_CMT_FLG ＝ ʻYʻ 同步(Insert/update)
-								if ("INSERT".equals(operation) ) {
-									if (StringUtils.equals("Y", lastCmtFlg)) {
-										// check if T 表 exists
-										boolean exists = checkExists(sourceConn, partyContact.getRoleType(), partyContact.getListId());
-										if (!exists) {
-											logger.info("   >>>T 表 does not exist, insert ...");
-											insertPartyContact(sourceConn, sinkConn, partyContact);
-										} else {
-											logger.info("   >>>T 表 exist, do nothing ...");
-										}
+								Integer roleType = (partyContact != null)? partyContact.getRoleType()
+										: beforePartyContact.getRoleType();
+								Long listId = (partyContact != null)? partyContact.getListId()
+										: beforePartyContact.getListId();
+								if (StringUtils.equals("Y", lastCmtFlg)) {
+									// check ignite list_id exists
+									boolean exists = checkSinkExists(sinkConn, roleType, listId);
+									if (exists) {
+										logger.info("   >>>ignite list_id exist, update ...");
+										updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
+									} else {
+										logger.info("   >>> ignite list_id does not exist, insert ...");
+										insertPartyContact(sourceConn, sinkConn, partyContact);
 									}
-								} else if ("UPDATE".equals(operation)) {
-									if (StringUtils.equals("Y", lastCmtFlg)) {
-										boolean exists = checkExists(sourceConn, partyContact.getRoleType(), partyContact.getListId());
-										if (exists) {
-											if (partyContact.equals(beforePartyContact)) {
-												logger.info("   >>> T 表 does exist,But, nothing change, ignote ...");
-											} else {
-												logger.info("   >>>T 表 does exist, update ...");
-												updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
-											}
-										} else {
-											logger.info("   >>>T 表 does not exist, do nothing ...");
-										}	
-									} else if (StringUtils.equals("N", lastCmtFlg)) {
-										boolean exists = checkExists(sourceConn, partyContact.getRoleType(), partyContact.getListId());
+								} else if (StringUtils.equals("N", lastCmtFlg)) {
+									Long policyChgId = partyContact.getPolicyChgId();
+									int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
+									
+									if (policyChgStatus == 2) {
+										logger.info("   >>>policyChgStatus={}", policyChgStatus);	
+										// check if T 表 exists
+										boolean exists = checkExists(sourceConn, partyContact.getRoleType(), listId);
 										if (exists) {
 											logger.info("   >>>T 表 exist, do nothing ...");
 										} else {
 											logger.info("   >>> T 表 does not exist, delete ...");
 											deletePartyContact(sinkConn, partyContact);
 										}
+									} else {
+										logger.info("   >>>do nothing with policyChgStatus={}", policyChgStatus);
 									}
-									// LAST_CMT_FLG ＝ ʻNʻ 且 t_policy_change.policy_chg_status ＝2 同步 (Delete)
-//									else if (StringUtils.equals("N", lastCmtFlg)) {
-//										Long policyChgId = beforePartyContact.getPolicyChgId();
-//										int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
-//										logger.info("   >>>policyChgStatus={}", policyChgStatus);
-//
-//										// delete
-//										if (policyChgStatus == 2) {
-//											// check if T 表 exists
-//											boolean exists = checkExists(sourceConn, beforePartyContact.getRoleType(), beforePartyContact.getListId());
-//											logger.info("   >>>T 表 exists={}, role_type={}, listId={}", exists, beforePartyContact.getRoleType(), beforePartyContact.getListId());
-//
-//											if (!exists) {
-//												logger.info("   >>> delete ...");
-//												deletePartyContact(sinkConn, beforePartyContact);
-//											}
-//										} else {
-//											// ignore
-//										}
-//									}
+								} else {
+									logger.error("   >>>lastCmtFlg={} is not recognized", lastCmtFlg);
 								}
-							} // Address 表
+
+							} 
+							// Address 表
 							else if (StringUtils.equals(addressTableName, tableName)) {
 								String payLoadData = payload.get("data").toString();
 								String beforePayLoadData = payload.get("before").toString();
@@ -418,7 +398,29 @@ public class ConsumerLoop2 implements Runnable {
 	public void shutdown() {
 		consumer.wakeup();
 	}
+	private boolean checkSinkExists(Connection sinkConn, Integer roleType, Long listId) throws SQLException {
+		String sql = null;
+		PreparedStatement pstmt = null;
+		ResultSet rs = null;
+		boolean exists = false;
+		try {
 
+			sql = "select * from " + config.sinkTablePartyContact  + " where ROLE_TYPE = ? and LIST_ID = ?";
+			pstmt = sinkConn.prepareStatement(sql);
+			pstmt.setInt(1, roleType);
+			pstmt.setLong(2, listId);
+			rs = pstmt.executeQuery();
+			while (rs.next()) {
+				exists = true;
+				break;
+			}
+		}
+		finally {
+			if (rs != null) rs.close();
+			if (pstmt != null) pstmt.close();
+		}
+		return exists;
+	}
 	private boolean checkExists(Connection sourceConn, Integer roleType, Long listId) throws SQLException {
 		String sql = null;
 		PreparedStatement pstmt = null;
