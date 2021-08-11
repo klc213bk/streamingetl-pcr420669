@@ -1,11 +1,10 @@
 #!/bin/bash
 
-#LOGMINER_HOME=/home/steven/gitrepo/transglobe/kafka-connect-oracle
 LOGMINER_HOME=/home/steven/gitrepo/transglobe/kafka-connect-logminer
 COMMON_HOME=/home/steven/gitrepo/transglobe/streamingetl-common
 SCHEDULING_HOME=/home/steven/gitrepo/transglobe/streamingetl-scheduling
-APP_HOME=/home/steven/gitrepo/transglobe/streamingetl-pcr420669
 STREAMINGETL_HOME=/home/steven/gitrepo/transglobe/streamingetl
+APP_HOME=/home/steven/gitrepo/transglobe/streamingetl-pcr420669
 
 echo "start to build logminer"
 cd ${LOGMINER_HOME}
