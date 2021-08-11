@@ -507,7 +507,7 @@ public class InitialLoadApp2 {
 				rs.close();
 				pstmt.close();
 
-				long stepSize = 10000;
+				long stepSize = 100000;
 				long startIndex = minListId;
 
 				int totalPartyCount = 0;

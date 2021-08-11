@@ -204,6 +204,8 @@ public class ConsumerLoop2 implements Runnable {
 
 							PartyContact partyContact = null;
 							PartyContact beforePartyContact = null;
+							Integer roleType = null;
+							Long listId = null;
 							if (isTtable || isTlogtable) {
 								logger.info("   >>>payload={}", payload.toPrettyString());
 								String payLoadData = payload.get("data").toString();
@@ -246,6 +248,10 @@ public class ConsumerLoop2 implements Runnable {
 								logger.info("   >>>partyContact={}", ((partyContact == null)? null : ToStringBuilder.reflectionToString(partyContact)));
 								logger.info("   >>>beforepartyContact={}", ((beforePartyContact == null)? null : ToStringBuilder.reflectionToString(beforePartyContact)));
 
+								roleType = (partyContact != null)? partyContact.getRoleType()
+										: beforePartyContact.getRoleType();
+								listId = (partyContact != null)? partyContact.getListId()
+										: beforePartyContact.getListId();
 							} 
 
 							// T 表
@@ -266,11 +272,11 @@ public class ConsumerLoop2 implements Runnable {
 											logger.info("   >>>ignore, equal ...");
 										} else {
 											logger.info("   >>>update ...");
-											updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
+											updatePartyContact(sourceConn, sinkConn, partyContact);
 										}
 									} else if ("DELETE".equals(operation)) {
 										logger.info("   >>>delete ...");
-										deletePartyContact(sinkConn, beforePartyContact);
+										deletePartyContact(sinkConn, roleType, listId);
 									}
 
 								} else {
@@ -281,33 +287,31 @@ public class ConsumerLoop2 implements Runnable {
 							else if (isTlogtable) {
 								String lastCmtFlg = (partyContact != null)? partyContact.getLastCmtFlg()
 										: beforePartyContact.getLastCmtFlg();
-								Integer roleType = (partyContact != null)? partyContact.getRoleType()
-										: beforePartyContact.getRoleType();
-								Long listId = (partyContact != null)? partyContact.getListId()
-										: beforePartyContact.getListId();
+								Long policyChgId = (partyContact != null)? partyContact.getPolicyChgId()
+										: beforePartyContact.getPolicyChgId();
+
 								if (StringUtils.equals("Y", lastCmtFlg)) {
 									// check ignite list_id exists
 									boolean exists = checkSinkExists(sinkConn, roleType, listId);
 									if (exists) {
 										logger.info("   >>>ignite list_id exist, update ...");
-										updatePartyContact(sourceConn, sinkConn, partyContact, beforePartyContact);
+										updatePartyContact(sourceConn, sinkConn, partyContact);
 									} else {
 										logger.info("   >>> ignite list_id does not exist, insert ...");
 										insertPartyContact(sourceConn, sinkConn, partyContact);
 									}
 								} else if (StringUtils.equals("N", lastCmtFlg)) {
-									Long policyChgId = partyContact.getPolicyChgId();
 									int policyChgStatus = getPolicyChangeStatus(sourceConn, policyChgId);
 									
 									if (policyChgStatus == 2) {
 										logger.info("   >>>policyChgStatus={}", policyChgStatus);	
 										// check if T 表 exists
-										boolean exists = checkExists(sourceConn, partyContact.getRoleType(), listId);
+										boolean exists = checkExists(sourceConn, roleType, listId);
 										if (exists) {
 											logger.info("   >>>T 表 exist, do nothing ...");
 										} else {
 											logger.info("   >>> T 表 does not exist, delete ...");
-											deletePartyContact(sinkConn, partyContact);
+											deletePartyContact(sinkConn, roleType, listId);
 										}
 									} else {
 										logger.info("   >>>do nothing with policyChgStatus={}", policyChgStatus);
@@ -582,7 +586,7 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
-	private void updatePartyContact(Connection sourceConn, Connection sinkConn, PartyContact partyContact, PartyContact beforePartyContact) throws Exception  {
+	private void updatePartyContact(Connection sourceConn, Connection sinkConn, PartyContact partyContact) throws Exception  {
 		PreparedStatement pstmt = null;
 		ResultSet rs = null;
 		try {
@@ -592,18 +596,18 @@ public class ConsumerLoop2 implements Runnable {
 			pstmt.setInt(1, partyContact.getRoleType());
 			pstmt.setLong(2, partyContact.getListId());
 			rs = pstmt.executeQuery();
-			//Long partyAddressId = null;
-			int count = 0;
+			Long partyAddressId = null;
+			boolean exists = false;
 			while (rs.next()) {
-				//	partyAddressId = rs.getLong("ADDRESS_ID");
-				count++;
+				partyAddressId = rs.getLong("ADDRESS_ID");
+				exists = true;
 			}
 			rs.close();
 			pstmt.close();
-			logger.info(">>>count={}", count);
+			logger.info(">>>partyAddressId={}", partyAddressId);
 
 			long t = System.currentTimeMillis();
-			if (count > 0) {
+			if (exists) {
 				if (partyContact.getAddressId() == null) {
 					sql = "update " + config.sinkTablePartyContact 
 							+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,ADDRESS_ID=null,ADDRESS_1=null,UPDATE_TIMESTAMP=?"
@@ -623,9 +627,9 @@ public class ConsumerLoop2 implements Runnable {
 				} else {
 
 					// update without address
-					if (beforePartyContact.getAddressId() != null 
+					if (partyAddressId != null 
 							&& partyContact.getAddressId() != null
-							&& beforePartyContact.getAddressId().longValue() == partyContact.getAddressId().longValue()) {
+							&& partyAddressId.longValue() == partyContact.getAddressId().longValue()) {
 						sql = "update " + config.sinkTablePartyContact 
 								+ " set POLICY_ID=?,NAME=?,CERTI_CODE=?,MOBILE_TEL=?,EMAIL=?,UPDATE_TIMESTAMP=?"
 								+ " where ROLE_TYPE=? and LIST_ID=?";
@@ -681,25 +685,25 @@ public class ConsumerLoop2 implements Runnable {
 			if (pstmt != null) pstmt.close();
 		}
 	}
-	private void deletePartyContact(Connection sinkConn, PartyContact partyContact) throws Exception  {
+	private void deletePartyContact(Connection sinkConn, Integer roleType, Long listId) throws Exception  {
 		PreparedStatement pstmt = null;
 		try {
 			String sql = "select count(*) AS COUNT from " + config.sinkTablePartyContact 
-					+ " where role_type = " + partyContact.getRoleType() + " and list_id = " + partyContact.getListId();
+					+ " where role_type = " + roleType + " and list_id = " + listId;
 			int count = getCount(sinkConn, sql);
 			if (count > 0) {
 				sql = "delete from " + config.sinkTablePartyContact + " where role_type = ? and list_id = ?";
 
 				pstmt = sinkConn.prepareStatement(sql);
-				pstmt.setInt(1, partyContact.getRoleType());
-				pstmt.setLong(2, partyContact.getListId());
+				pstmt.setInt(1, roleType);
+				pstmt.setLong(2, listId);
 
 				pstmt.executeUpdate();
 				pstmt.close();
 
 			} else {
 				// record exists, error
-				String error = String.format("table=%s record does not exist, therefore cannot delete, role_type=%d, list_id=%d", config.sinkTablePartyContact, partyContact.getRoleType(), partyContact.getListId());
+				String error = String.format("table=%s record does not exist, therefore cannot delete, role_type=%d, list_id=%d", config.sinkTablePartyContact, roleType, listId);
 				throw new Exception(error);
 			}
 		} catch (Exception e) {
